@@ -145,6 +145,7 @@ bool duel::can_snapshot() const {
 }
 duel::snapshot_state duel::make_snapshot() const {
 	snapshot_state snapshot{};
+	snapshot.owner = arena;
 	if(arena) {
 		snapshot.arena_used = arena->used();
 		snapshot.arena_image.resize(snapshot.arena_used);
@@ -153,6 +154,8 @@ duel::snapshot_state duel::make_snapshot() const {
 	return snapshot;
 }
 bool duel::restore_snapshot(const snapshot_state& snapshot) {
+	if(snapshot.owner != arena)
+		return false;
 	if(arena && !snapshot.arena_image.empty()) {
 		if(snapshot.arena_used != snapshot.arena_image.size())
 			return false;

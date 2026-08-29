@@ -60,6 +60,7 @@ static void dump(const std::vector<uint8_t>& b) { for(size_t i=0;i+5<=b.size();)
 static std::vector<uint8_t> send(OCG_Duel d, uint32_t v, int& status) { OCG_DuelSetResponse(d,&v,4); std::vector<uint8_t> out; do { status=OCG_DuelProcess(d); uint32_t n{}; auto*p=(uint8_t*)OCG_DuelGetMessage(d,&n); out.insert(out.end(),p,p+n); } while(status==OCG_DUEL_STATUS_CONTINUE); return out; }
 int main() {
 	OCG_Duel d=make(); OCG_DuelSnapshot s{}; assert(OCG_DuelCreateSnapshot(d,&s)==0);
+	OCG_Duel foreign=make(); assert(OCG_DuelRestoreSnapshot(foreign,s)==OCG_DUEL_SNAPSHOT_INVALID_OWNER); int foreign_status{}; auto foreign_output=branch(foreign,7,foreign_status); assert(!foreign_output.empty()); OCG_DestroyDuel(foreign);
 	int a{},b{},r{}; auto first=branch(d,7,a); assert(OCG_DuelRestoreSnapshot(d,s)==0); auto same=branch(d,7,b); assert(a==b && first==same);
 	assert(OCG_DuelRestoreSnapshot(d,s)==0); auto diverged=branch(d,6,b); OCG_Duel ref=make(); auto expected=branch(ref,6,r); assert(b==r && diverged==expected);
 	OCG_DuelDestroySnapshot(s); OCG_DestroyDuel(ref); OCG_DestroyDuel(d);

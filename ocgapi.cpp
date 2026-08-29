@@ -149,7 +149,10 @@ int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot) {
 		return OCG_DUEL_SNAPSHOT_NULL_ARGUMENT;
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	return pduel->restore_snapshot(*static_cast<duel::snapshot_state*>(snapshot))
+	auto* state = static_cast<duel::snapshot_state*>(snapshot);
+	if(state->owner != pduel->arena)
+		return OCG_DUEL_SNAPSHOT_INVALID_OWNER;
+	return pduel->restore_snapshot(*state)
 		? OCG_DUEL_SNAPSHOT_SUCCESS : OCG_DUEL_SNAPSHOT_NONDETERMINISTIC_REPLAY;
 }
 

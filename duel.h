@@ -46,6 +46,7 @@ struct card_data {
 class duel {
 public:
 	struct snapshot_state {
+		const duel_arena* owner{};
 		std::vector<uint8_t> arena_image;
 		size_t arena_used{};
 	};

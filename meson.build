@@ -17,7 +17,6 @@ ocgcore_src = files([
 	'duel_arena.cpp',
 	'effect.cpp',
 	'field.cpp',
-	'libgroup.cpp',
 	'interpreter.cpp',
 	'libcard.cpp',
 	'libdebug.cpp',
