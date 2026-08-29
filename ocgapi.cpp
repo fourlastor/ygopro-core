@@ -156,6 +156,8 @@ int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot) {
 void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot) {
 	delete static_cast<duel::snapshot_state*>(snapshot);
 }
+uint64_t OCG_DuelArenaUsed(OCG_Duel ocg_duel) { return ocg_duel ? static_cast<duel*>(ocg_duel)->arena->used() : 0; }
+uint64_t OCG_DuelSnapshotSize(OCG_DuelSnapshot snapshot) { return snapshot ? static_cast<duel::snapshot_state*>(snapshot)->arena_image.size() : 0; }
 
 int OCG_DuelProcess(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);

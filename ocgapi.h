@@ -40,6 +40,8 @@ OCGAPI void OCG_StartDuel(OCG_Duel ocg_duel);
 OCGAPI int OCG_DuelCreateSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot* out_snapshot);
 OCGAPI int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot);
 OCGAPI void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot);
+OCGAPI uint64_t OCG_DuelArenaUsed(OCG_Duel ocg_duel);
+OCGAPI uint64_t OCG_DuelSnapshotSize(OCG_DuelSnapshot snapshot);
 
 /*** DUEL PROCESSING AND QUERYING ***/
 OCGAPI int OCG_DuelProcess(OCG_Duel ocg_duel);
