@@ -113,12 +113,8 @@ public:
 	int32_t get_next_integer(int32_t l, int32_t h);
 	duel_message* new_message(uint8_t message);
 	const card_data& read_card(uint32_t code);
-	inline void handle_message(const char* message, OCG_LogTypes type) {
-		handle_message_callback(handle_message_payload, message, type);
-	}
-	inline int read_script(const char* name) {
-		return read_script_callback(read_script_payload, this, name);
-	}
+	void handle_message(const char* message, OCG_LogTypes type);
+	int read_script(const char* name);
 private:
 	OCG_DuelOptions options;
 	OCG_DuelStatus last_process_status{OCG_DUEL_STATUS_END};

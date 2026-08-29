@@ -180,10 +180,27 @@ const card_data& duel::read_card(uint32_t code) {
 	if(auto search = data_cache.find(code); search != data_cache.end())
 		return search->second;
 	OCG_CardData data{};
-	read_card_callback(read_card_payload, code, &data);
+	{
+		// Host callbacks may allocate with their own allocator; never route those
+		// allocations into the duel image.  Re-entry through OCG APIs establishes
+		// a fresh arena scope for core-owned work.
+		duel_arena_scope host_scope(nullptr);
+		read_card_callback(read_card_payload, code, &data);
+	}
 	auto ret = &(data_cache.emplace(code, data).first->second);
-	read_card_done_callback(read_card_done_payload, &data);
+	{
+		duel_arena_scope host_scope(nullptr);
+		read_card_done_callback(read_card_done_payload, &data);
+	}
 	return *ret;
+}
+void duel::handle_message(const char* message, OCG_LogTypes type) {
+	duel_arena_scope host_scope(nullptr);
+	handle_message_callback(handle_message_payload, message, type);
+}
+int duel::read_script(const char* name) {
+	duel_arena_scope host_scope(nullptr);
+	return read_script_callback(read_script_payload, this, name);
 }
 duel::duel_message::duel_message(uint8_t message) {
 	write<uint8_t>(message);
