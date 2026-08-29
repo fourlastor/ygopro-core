@@ -6,13 +6,17 @@
  */
 #include <array>
 #include <cstring> //std::memcpy
+#include <new> // placement new
+#include "ocgapi.h"
 #include "card.h"
 #include "duel.h"
 #include "effect.h"
 #include "field.h"
 #include "interpreter.h"
 
-duel::duel(const OCG_DuelOptions& options, bool& valid_lua_lib) :
+duel::duel(const OCG_DuelOptions& options, bool& valid_lua_lib, duel_arena* arena) :
+	arena(arena),
+	options(options),
 	random({ options.seed[0], options.seed[1], options.seed[2], options.seed[3] }),
 	read_card_callback(options.cardReader), read_script_callback(options.scriptReader),
 	handle_message_callback(options.logHandler), read_card_done_callback(options.cardReaderDone),
@@ -130,6 +134,101 @@ void duel::set_response(const void* resp, size_t len) {
 	if(len == 0)
 		return;
 	std::memcpy(game_field->returns.data.data(), resp, len);
+}
+void duel::record_new_card(const OCG_NewCardInfo& info) {
+	if(recording) {
+		replay_action action{ replay_action::type::new_card };
+		action.card = info;
+		replay_actions.push_back(std::move(action));
+	}
+}
+void duel::record_start() {
+	if(recording)
+		replay_actions.push_back({ replay_action::type::start });
+}
+void duel::record_response(const void* resp, size_t len) {
+	if(recording) {
+		replay_action action{ replay_action::type::set_response };
+		action.bytes.resize(len);
+		if(len)
+			std::memcpy(action.bytes.data(), resp, len);
+		replay_actions.push_back(std::move(action));
+	}
+	response_pending = true;
+}
+void duel::record_process() {
+	if(recording)
+		replay_actions.push_back({ replay_action::type::process });
+	response_pending = false;
+}
+void duel::record_script(const char* buffer, uint32_t length, const char* name) {
+	if(!recording)
+		return;
+	replay_action action{ replay_action::type::load_script };
+	action.bytes.resize(length);
+	if(length)
+		std::memcpy(action.bytes.data(), buffer, length);
+	if(name)
+		action.name = name;
+	replay_actions.push_back(std::move(action));
+}
+void duel::set_process_result(OCG_DuelStatus status) {
+	last_process_status = status;
+}
+bool duel::can_snapshot() const {
+	return last_process_status == OCG_DUEL_STATUS_AWAITING && !response_pending;
+}
+duel::snapshot_state duel::make_snapshot() const {
+	snapshot_state snapshot{ replay_actions, buff, {}, {}, last_process_status };
+	if(arena) {
+		snapshot.arena_used = arena->used();
+		snapshot.arena_image.resize(snapshot.arena_used);
+		std::memcpy(snapshot.arena_image.data(), arena->data(), snapshot.arena_used);
+	}
+	return snapshot;
+}
+bool duel::restore_snapshot(const snapshot_state& snapshot) {
+	if(arena && !snapshot.arena_image.empty()) {
+		if(snapshot.arena_used != snapshot.arena_image.size())
+			return false;
+		std::memcpy(arena->data(), snapshot.arena_image.data(), snapshot.arena_used);
+		arena->restore_used(snapshot.arena_used);
+		return true;
+	}
+	const auto saved_options = options;
+	this->~duel();
+	bool valid_lua_lib = true;
+	new(this) duel(saved_options, valid_lua_lib);
+	if(!valid_lua_lib)
+		return false;
+	recording = false;
+	for(const auto& action : snapshot.actions) {
+		switch(action.kind) {
+		case replay_action::type::new_card:
+			OCG_DuelNewCard(this, &action.card);
+			break;
+		case replay_action::type::start:
+			OCG_StartDuel(this);
+			break;
+		case replay_action::type::set_response:
+			OCG_DuelSetResponse(this, action.bytes.data(), static_cast<uint32_t>(action.bytes.size()));
+			break;
+		case replay_action::type::process:
+			OCG_DuelProcess(this);
+			break;
+		case replay_action::type::load_script:
+			if(!OCG_LoadScript(this, reinterpret_cast<const char*>(action.bytes.data()), static_cast<uint32_t>(action.bytes.size()), action.name.c_str()))
+				return false;
+			break;
+		}
+	}
+	const bool exact = last_process_status == snapshot.status && buff == snapshot.message;
+	if(exact) {
+		replay_actions = snapshot.actions;
+		response_pending = false;
+	}
+	recording = true;
+	return exact;
 }
 // uniform integer distribution
 int32_t duel::get_next_integer(int32_t l, int32_t h) {

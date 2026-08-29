@@ -43,11 +43,24 @@ int OCG_CreateDuel(OCG_Duel* out_ocg_duel, const OCG_DuelOptions* options_ptr) {
 	if(options.seed[0] == 0 && options.seed[1] == 0 && options.seed[2] == 0 && options.seed[3] == 0)
 		return OCG_DUEL_CREATION_NULL_RNG_SEED;
 	bool valid_lua_lib = true;
-	auto* duelPtr = new (std::nothrow) duel(options, valid_lua_lib);
+	// The control object is intentionally outside the arena.  The duel root and
+	// every allocation made while entering the core live at stable arena offsets.
+	duel_arena* arena = nullptr;
+	duel* duelPtr = nullptr;
+	try {
+		arena = new duel_arena(64u * 1024u * 1024u);
+		duel_arena_scope scope(arena);
+		duelPtr = new duel(options, valid_lua_lib, arena);
+	} catch(const std::bad_alloc&) {
+		delete arena;
+		duelPtr = nullptr;
+	}
 	if(duelPtr == nullptr)
 		return OCG_DUEL_CREATION_NOT_CREATED;
 	if(!valid_lua_lib) {
+		duel_arena_scope scope(arena);
 		delete duelPtr;
+		delete arena;
 		return OCG_DUEL_CREATION_INCOMPATIBLE_LUA_API;
 	}
 	*out_ocg_duel = static_cast<OCG_Duel>(duelPtr);
@@ -55,12 +68,19 @@ int OCG_CreateDuel(OCG_Duel* out_ocg_duel, const OCG_DuelOptions* options_ptr) {
 }
 
 void OCG_DestroyDuel(OCG_Duel ocg_duel) {
-	if(ocg_duel)
-		delete static_cast<duel*>(ocg_duel);
+	if(ocg_duel) {
+		auto* pduel = static_cast<duel*>(ocg_duel);
+		auto* arena = pduel->arena;
+		duel_arena_scope scope(arena);
+		delete pduel;
+		delete arena;
+	}
 }
 
 void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
+	pduel->record_new_card(*info_ptr);
 	auto& game_field = *(pduel->game_field);
 	const auto& info = *info_ptr;
 	if(bit::popcnt(info.loc) > 1)
@@ -105,22 +125,57 @@ void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 
 void OCG_StartDuel(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
+	pduel->record_start();
 	pduel->game_field->emplace_process<Processors::Startup>();
+}
+
+int OCG_DuelCreateSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot* out_snapshot) {
+	if(!ocg_duel || !out_snapshot)
+		return OCG_DUEL_SNAPSHOT_NULL_ARGUMENT;
+	auto* pduel = static_cast<duel*>(ocg_duel);
+	if(!pduel->can_snapshot())
+		return OCG_DUEL_SNAPSHOT_UNSAFE_BOUNDARY;
+	try {
+		// Snapshot metadata and the byte image must not consume duel arena space.
+		*out_snapshot = new duel::snapshot_state(pduel->make_snapshot());
+	} catch(const std::bad_alloc&) {
+		*out_snapshot = nullptr;
+		return OCG_DUEL_SNAPSHOT_RESTORE_FAILED;
+	}
+	return OCG_DUEL_SNAPSHOT_SUCCESS;
+}
+
+int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot) {
+	if(!ocg_duel || !snapshot)
+		return OCG_DUEL_SNAPSHOT_NULL_ARGUMENT;
+	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
+	return pduel->restore_snapshot(*static_cast<duel::snapshot_state*>(snapshot))
+		? OCG_DUEL_SNAPSHOT_SUCCESS : OCG_DUEL_SNAPSHOT_NONDETERMINISTIC_REPLAY;
+}
+
+void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot) {
+	delete static_cast<duel::snapshot_state*>(snapshot);
 }
 
 int OCG_DuelProcess(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
+	pduel->record_process();
 	pduel->buff.clear();
 	auto flag = OCG_DUEL_STATUS_END;
 	do {
 		flag = pduel->game_field->process();
 		pduel->generate_buffer();
 	} while(pduel->buff.size() == 0 && flag == OCG_DUEL_STATUS_CONTINUE);
+	pduel->set_process_result(flag);
 	return flag;
 }
 
 void* OCG_DuelGetMessage(OCG_Duel ocg_duel, uint32_t* length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
 	pduel->generate_buffer();
 	if(length)
 		*length = static_cast<uint32_t>(pduel->buff.size());
@@ -129,11 +184,15 @@ void* OCG_DuelGetMessage(OCG_Duel ocg_duel, uint32_t* length) {
 
 void OCG_DuelSetResponse(OCG_Duel ocg_duel, const void* buffer, uint32_t length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
+	pduel->record_response(buffer, length);
 	pduel->set_response(buffer, length);
 }
 
 int OCG_LoadScript(OCG_Duel ocg_duel, const char* buffer, uint32_t length, const char* name) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
+	pduel->record_script(buffer, length, name);
 	return pduel->lua->load_script(buffer, length, name);
 }
 

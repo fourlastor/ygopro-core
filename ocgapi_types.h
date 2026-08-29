@@ -33,7 +33,16 @@ typedef enum OCG_DuelStatus {
 	OCG_DUEL_STATUS_CONTINUE
 }OCG_DuelStatus;
 
+typedef enum OCG_DuelSnapshotStatus {
+	OCG_DUEL_SNAPSHOT_SUCCESS,
+	OCG_DUEL_SNAPSHOT_NULL_ARGUMENT,
+	OCG_DUEL_SNAPSHOT_UNSAFE_BOUNDARY,
+	OCG_DUEL_SNAPSHOT_RESTORE_FAILED,
+	OCG_DUEL_SNAPSHOT_NONDETERMINISTIC_REPLAY
+}OCG_DuelSnapshotStatus;
+
 typedef void* OCG_Duel;
+typedef void* OCG_DuelSnapshot;
 
 typedef struct OCG_CardData {
 	uint32_t code;

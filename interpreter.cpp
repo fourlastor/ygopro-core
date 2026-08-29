@@ -58,7 +58,10 @@ static bool check_lua_stack_unwinding(lua_State* L) {
 }
 
 interpreter::interpreter(duel* pd, const OCG_DuelOptions& options, bool& valid_lua_lib): coroutines(256), deleted(pd) {
-	lua_state = luaL_newstate();
+	auto lua_alloc = [](void* ud, void* ptr, size_t old_size, size_t new_size) -> void* {
+		return static_cast<duel_arena*>(ud)->reallocate(ptr, old_size, new_size);
+	};
+	lua_state = pd->arena ? lua_newstate(lua_alloc, pd->arena) : luaL_newstate();
 	if(!check_lua_stack_unwinding(lua_state)) {
 		valid_lua_lib = false;
 		pd->handle_message("The lua library linked with this ocgcore does not support c++'s stack unwinding", OCG_LOG_TYPE_ERROR);

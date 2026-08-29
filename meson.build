@@ -14,9 +14,10 @@ endif
 ocgcore_src = files([
 	'card.cpp',
 	'duel.cpp',
+	'duel_arena.cpp',
 	'effect.cpp',
 	'field.cpp',
-	'group.cpp',
+	'libgroup.cpp',
 	'interpreter.cpp',
 	'libcard.cpp',
 	'libdebug.cpp',

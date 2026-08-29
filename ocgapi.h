@@ -33,6 +33,14 @@ OCGAPI void OCG_DestroyDuel(OCG_Duel ocg_duel);
 OCGAPI void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr);
 OCGAPI void OCG_StartDuel(OCG_Duel ocg_duel);
 
+/*** PORTABLE SNAPSHOT/RESTORE PROTOTYPE ***/
+/* Snapshots are valid only after OCG_DuelProcess returns AWAITING and before a
+ * response is submitted. Restore reconstructs the duel at the same OCG_Duel
+ * address by replaying the recorded opaque C-API prefix. */
+OCGAPI int OCG_DuelCreateSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot* out_snapshot);
+OCGAPI int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot);
+OCGAPI void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot);
+
 /*** DUEL PROCESSING AND QUERYING ***/
 OCGAPI int OCG_DuelProcess(OCG_Duel ocg_duel);
 OCGAPI void* OCG_DuelGetMessage(OCG_Duel ocg_duel, uint32_t* length);
