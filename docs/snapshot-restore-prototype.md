@@ -20,8 +20,8 @@ At an `OCG_DUEL_STATUS_AWAITING` response boundary with no pending response,
 storage.  `OCG_DuelRestoreSnapshot` copies those bytes back to the identical
 arena base and resets its allocation cursor.  The `OCG_Duel` pointer is stable;
 all contained raw pointers retain their values.  This is a real state copy,
-not semantic serialization.  The pre-existing opaque-prefix replay ledger is
-retained only as an oracle/baseline for future differential tests.
+not semantic serialization.  The core stores no replay history; differential
+tests must construct an independent reference duel externally.
 
 ## Measured smoke result
 
@@ -36,10 +36,9 @@ Both continuation status and binary engine message were identical (`exact=1`).
 This is intentionally a bounded-growth containment prototype: the arena is
 monotonic, Lua `realloc` allocates-and-copies, and frees are no-ops.  It needs
 a configurable arena size and lifetime/high-water benchmark before production.
-Host callbacks currently execute while the TLS arena is active; allocations
-they make can be incorrectly captured, so callback entry must suspend the
-scope before this can be exposed generally.  Query APIs still need the same
-scope audit.  Most importantly, the smoke fixture has not yet exercised card
+Host callbacks suspend TLS arena routing; callback-returned card data is copied
+before `cardReaderDone`, and API re-entry is explicitly supported.  All public
+duel/query APIs establish an arena scope.  Most importantly, the smoke fixture has not yet exercised card
 Lua effects, chains, or selection prompts, so this commit must not be treated
 as full snapshot validation.
 
