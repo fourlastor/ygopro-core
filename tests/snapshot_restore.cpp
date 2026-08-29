@@ -4,6 +4,7 @@
 #include <string>
 #include <cstdlib>
 #include <cstdio>
+#include <chrono>
 #include "ocgapi.h"
 #include "ocgapi_constants.h"
 static void data(void*, uint32_t code, OCG_CardData* d) { *d = {}; d->code=code; d->type=TYPE_MONSTER|TYPE_EFFECT; d->level=4; d->attribute=ATTRIBUTE_LIGHT; d->race=RACE_WARRIOR; d->attack=1000; d->defense=1000; }
@@ -64,4 +65,6 @@ int main() {
 	auto chosen=branch(e,1,a); assert(OCG_DuelRestoreSnapshot(e,s)==0); auto repeated=branch(e,1,b); assert(a==b && chosen==repeated);
 	assert(OCG_DuelRestoreSnapshot(e,s)==0); auto other=branch(e,0,b); OCG_Duel er=make(true); auto rf=send(er,5,r); if(has(rf,MSG_SELECT_CHAIN)) rf=send(er,0xffffffffu,r); auto expected_other=branch(er,0,r); assert(b==r && other==expected_other);
 	OCG_DuelDestroySnapshot(s); OCG_DestroyDuel(er); OCG_DestroyDuel(e);
+	constexpr int N=32; auto bench=[](bool effect) { OCG_Duel d=make(effect); int z{}; if(effect) { auto q=send(d,5,z); for(int i=0;i<4&&has(q,MSG_SELECT_CHAIN);++i) q=send(d,0xffffffffu,z); } OCG_DuelSnapshot x{}; auto t0=std::chrono::steady_clock::now(); for(int i=0;i<N;++i) { assert(OCG_DuelCreateSnapshot(d,&x)==0); OCG_DuelDestroySnapshot(x); } auto t1=std::chrono::steady_clock::now(); assert(OCG_DuelCreateSnapshot(d,&x)==0); auto bytes=OCG_DuelSnapshotSize(x), used=OCG_DuelArenaUsed(d); for(int i=0;i<N;++i) assert(OCG_DuelRestoreSnapshot(d,x)==0); auto t2=std::chrono::steady_clock::now(); OCG_DuelDestroySnapshot(x); auto t3=std::chrono::steady_clock::now(); for(int i=0;i<N;++i) { OCG_Duel r=make(effect); OCG_DestroyDuel(r); } auto t4=std::chrono::steady_clock::now(); std::printf("bench %s n=%d used=%llu snapshot=%llu create_us=%.1f restore_us=%.1f fresh_us=%.1f\\n",effect?"selection":"idle",N,(unsigned long long)used,(unsigned long long)bytes,std::chrono::duration<double,std::micro>(t1-t0).count()/N,std::chrono::duration<double,std::micro>(t2-t1).count()/N,std::chrono::duration<double,std::micro>(t4-t3).count()/N); OCG_DestroyDuel(d); };
+	bench(false); bench(true);
 }

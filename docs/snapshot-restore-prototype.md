@@ -31,6 +31,14 @@ no-card duel was advanced to an external idle-command boundary, snapshotted,
 given end-phase response `7`, restored in place, and given response `7` again.
 Both continuation status and binary engine message were identical (`exact=1`).
 
+The committed harness also ran 32 iterations on this Linux host (microseconds
+per operation): early idle used/copied 97,601 bytes, snapshot creation 3.4 us,
+restore 1.5 us, fresh construction to idle 219.2 us; later effect-selection
+used/copied 125,370 bytes, creation 4.5 us, restore 2.0 us, fresh construction
+to the corresponding fixture setup 314.6 us.  These are feasibility numbers,
+not a production benchmark; the fresh comparison includes fixture construction
+but not an external response-prefix replay.
+
 ## Current boundaries and blockers
 
 This is intentionally a bounded-growth containment prototype: the arena is
