@@ -33,11 +33,10 @@ Both continuation status and binary engine message were identical (`exact=1`).
 
 The committed harness also ran 32 iterations on this Linux host (microseconds
 per operation): early idle used/copied 97,601 bytes, snapshot creation 3.4 us,
-restore 1.5 us, fresh construction to idle 219.2 us; later effect-selection
-used/copied 125,370 bytes, creation 4.5 us, restore 2.0 us, fresh construction
-to the corresponding fixture setup 314.6 us.  These are feasibility numbers,
-not a production benchmark; the fresh comparison includes fixture construction
-but not an external response-prefix replay.
+restore 1.6 us, fresh construction to idle 218.9 us; later effect-selection
+used/copied 128,302 bytes, creation 4.5 us, restore 2.0 us, fresh construction
+and drive through activation/chain passes to selection 454.4 us.  These are
+feasibility numbers, not a production benchmark.
 
 ## Current boundaries and blockers
 
@@ -46,9 +45,9 @@ monotonic, Lua `realloc` allocates-and-copies, and frees are no-ops.  It needs
 a configurable arena size and lifetime/high-water benchmark before production.
 Host callbacks suspend TLS arena routing; callback-returned card data is copied
 before `cardReaderDone`, and API re-entry is explicitly supported.  All public
-duel/query APIs establish an arena scope.  Most importantly, the smoke fixture has not yet exercised card
-Lua effects, chains, or selection prompts, so this commit must not be treated
-as full snapshot validation.
+duel/query APIs establish an arena scope.  The committed fixture exercises Lua
+effect activation, an opponent chain response, and valid two-card selection;
+it is still intentionally smaller than a production card corpus.
 
 The source `meson.build` also named absent `group.cpp`; it now names
 `libgroup.cpp`, but it still links system Lua rather than the pinned C++ Lua
