@@ -35,8 +35,8 @@ OCGAPI void OCG_StartDuel(OCG_Duel ocg_duel);
 
 /*** PORTABLE SNAPSHOT/RESTORE PROTOTYPE ***/
 /* Snapshots are valid only after OCG_DuelProcess returns AWAITING and before a
- * response is submitted. Restore reconstructs the duel at the same OCG_Duel
- * address by replaying the recorded opaque C-API prefix. */
+ * response is submitted. Restore copies duel-owned arena state back to the
+ * same OCG_Duel address. */
 OCGAPI int OCG_DuelCreateSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot* out_snapshot);
 OCGAPI int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot);
 OCGAPI void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot);

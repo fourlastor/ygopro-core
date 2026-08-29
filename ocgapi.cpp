@@ -80,7 +80,6 @@ void OCG_DestroyDuel(OCG_Duel ocg_duel) {
 void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->record_new_card(*info_ptr);
 	auto& game_field = *(pduel->game_field);
 	const auto& info = *info_ptr;
 	if(bit::popcnt(info.loc) > 1)
@@ -126,7 +125,6 @@ void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 void OCG_StartDuel(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->record_start();
 	pduel->game_field->emplace_process<Processors::Startup>();
 }
 
@@ -162,7 +160,6 @@ void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot) {
 int OCG_DuelProcess(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->record_process();
 	pduel->buff.clear();
 	auto flag = OCG_DUEL_STATUS_END;
 	do {
@@ -185,19 +182,18 @@ void* OCG_DuelGetMessage(OCG_Duel ocg_duel, uint32_t* length) {
 void OCG_DuelSetResponse(OCG_Duel ocg_duel, const void* buffer, uint32_t length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->record_response(buffer, length);
 	pduel->set_response(buffer, length);
 }
 
 int OCG_LoadScript(OCG_Duel ocg_duel, const char* buffer, uint32_t length, const char* name) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->record_script(buffer, length, name);
 	return pduel->lua->load_script(buffer, length, name);
 }
 
 uint32_t OCG_DuelQueryCount(OCG_Duel ocg_duel, uint8_t team, uint32_t loc) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
 	if(team > 1)
 		return 0;
 	if(bit::popcnt(loc) != 1)
@@ -239,6 +235,7 @@ ForceInline void insert_value(std::vector<uint8_t>& vec, T2 val) {
 void* OCG_DuelQuery(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
 	const auto& info = *info_ptr;
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
 	if(bit::popcnt(info.loc & ~LOCATION_OVERLAY) != 1)
 		return nullptr;
 	pduel->query_buffer.clear();
@@ -266,6 +263,7 @@ void* OCG_DuelQuery(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* in
 void* OCG_DuelQueryLocation(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
 	const auto& info = *info_ptr;
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
 	auto& buffer = pduel->query_buffer;
 	auto populate = [&flags = info.flags, &buffer](const card_vector& list) {
 		for(auto& pcard : list) {
@@ -308,6 +306,7 @@ void* OCG_DuelQueryLocation(OCG_Duel ocg_duel, uint32_t* length, const OCG_Query
 
 void* OCG_DuelQueryField(OCG_Duel ocg_duel, uint32_t* length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
+	duel_arena_scope scope(pduel->arena);
 	auto& query = pduel->query_buffer;
 	query.clear();
 	//insert_value<int8_t>(query, MSG_RELOAD_FIELD);

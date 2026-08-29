@@ -8,7 +8,6 @@
 #define DUEL_H_
 
 #include <deque>
-#include <string>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
@@ -46,21 +45,9 @@ struct card_data {
 
 class duel {
 public:
-	// The public API is deliberately the recording boundary.  A snapshot is a
-	// replayable opaque input prefix, not a partial serialization of the Lua VM.
-	struct replay_action {
-		enum class type : uint8_t { new_card, start, set_response, process, load_script };
-		type kind;
-		OCG_NewCardInfo card{};
-		std::vector<uint8_t> bytes;
-		std::string name;
-	};
 	struct snapshot_state {
-		std::vector<replay_action> actions;
-		std::vector<uint8_t> message;
 		std::vector<uint8_t> arena_image;
 		size_t arena_used{};
-		OCG_DuelStatus status{OCG_DUEL_STATUS_END};
 	};
 	class duel_message {
 	private:
@@ -118,11 +105,6 @@ public:
 	void write_buffer(const void* data, size_t size);
 	void clear_buffer();
 	void set_response(const void* resp, size_t len);
-	void record_new_card(const OCG_NewCardInfo& info);
-	void record_start();
-	void record_response(const void* resp, size_t len);
-	void record_process();
-	void record_script(const char* buffer, uint32_t length, const char* name);
 	void set_process_result(OCG_DuelStatus status);
 	bool can_snapshot() const;
 	snapshot_state make_snapshot() const;
@@ -139,10 +121,8 @@ public:
 	}
 private:
 	OCG_DuelOptions options;
-	std::vector<replay_action> replay_actions;
 	OCG_DuelStatus last_process_status{OCG_DUEL_STATUS_END};
 	bool response_pending{false};
-	bool recording{true};
 	std::deque<duel_message> messages;
 	RNG::Xoshiro256StarStar random;
 	OCG_DataReader read_card_callback;
