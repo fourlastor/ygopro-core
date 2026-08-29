@@ -18,9 +18,20 @@ end
 function s.op(e,tp,eg,ep,ev,re,r,rp)
  Duel.SelectMatchingCard(tp,Card.IsAbleToHand,tp,0x01,0,1,1,nil)
 end)";
+static const char chain_script[] = R"(local s=c102
+function s.initial_effect(c)
+ local e=Effect.CreateEffect(c)
+ e:SetType(0x100)
+ e:SetCode(1027)
+ e:SetRange(0x04)
+ e:SetCondition(function() return true end)
+ e:SetOperation(function() end)
+ c:RegisterEffect(e)
+end)";
 static int script_requests{};
 static int script(void*, OCG_Duel d, const char* name) {
-	if(std::strcmp(name,"c100.lua")==0) { ++script_requests; return OCG_LoadScript(d,effect_script,sizeof(effect_script)-1,name); }
+ if(std::strcmp(name,"c100.lua")==0) { ++script_requests; return OCG_LoadScript(d,effect_script,sizeof(effect_script)-1,name); }
+	if(std::strcmp(name,"c102.lua")==0) return OCG_LoadScript(d,chain_script,sizeof(chain_script)-1,name);
  return 0;
 }
 static void effect_fixture(OCG_Duel d);
@@ -34,6 +45,8 @@ static void effect_fixture(OCG_Duel d) {
 	OCG_DuelNewCard(d,&monster);
 	OCG_NewCardInfo deck{}; deck.team=0; deck.code=101; deck.con=0; deck.loc=LOCATION_DECK; deck.pos=POS_FACEDOWN_DEFENSE;
 	OCG_DuelNewCard(d,&deck);
+	OCG_NewCardInfo chain{}; chain.team=1; chain.code=102; chain.con=1; chain.loc=LOCATION_MZONE; chain.pos=POS_FACEUP_ATTACK;
+	OCG_DuelNewCard(d,&chain);
 }
 static std::vector<uint8_t> branch(OCG_Duel d, uint8_t response, int& status) {
 	OCG_DuelSetResponse(d,&response,1); status=OCG_DuelProcess(d); uint32_t n{}; auto* p=(uint8_t*)OCG_DuelGetMessage(d,&n); return {p,p+n};
@@ -46,6 +59,7 @@ int main() {
 	int a{},b{},r{}; auto first=branch(d,7,a); assert(OCG_DuelRestoreSnapshot(d,s)==0); auto same=branch(d,7,b); assert(a==b && first==same);
 	assert(OCG_DuelRestoreSnapshot(d,s)==0); auto diverged=branch(d,6,b); OCG_Duel ref=make(); auto expected=branch(ref,6,r); assert(b==r && diverged==expected);
 	OCG_DuelDestroySnapshot(s); OCG_DestroyDuel(ref); OCG_DestroyDuel(d);
+	OCG_Duel chain=make(true); auto cp=send(chain,5,a); assert(has(cp,MSG_SELECT_CHAIN)); assert(OCG_DuelCreateSnapshot(chain,&s)==0); auto pass=send(chain,0xffffffffu,a); assert(OCG_DuelRestoreSnapshot(chain,s)==0); auto pass2=send(chain,0xffffffffu,b); assert(a==b && pass==pass2); assert(OCG_DuelRestoreSnapshot(chain,s)==0); auto activate=send(chain,0,b); OCG_Duel chain_ref=make(true); auto cref=send(chain_ref,5,r); assert(has(cref,MSG_SELECT_CHAIN)); auto activate_ref=send(chain_ref,0,r); assert(b==r && activate==activate_ref); OCG_DuelDestroySnapshot(s); OCG_DestroyDuel(chain_ref); OCG_DestroyDuel(chain);
 	OCG_Duel e=make(true); assert(script_requests); auto f=send(e,5,a); for(int i=0;i<4 && has(f,MSG_SELECT_CHAIN);++i) f=send(e,0xffffffffu,a); if(!has(f,MSG_SELECT_CARD)) dump(f); assert(has(f,MSG_SELECT_CARD)); assert(OCG_DuelCreateSnapshot(e,&s)==0);
 	auto chosen=branch(e,1,a); assert(OCG_DuelRestoreSnapshot(e,s)==0); auto repeated=branch(e,1,b); assert(a==b && chosen==repeated);
 	assert(OCG_DuelRestoreSnapshot(e,s)==0); auto other=branch(e,0,b); OCG_Duel er=make(true); auto rf=send(er,5,r); if(has(rf,MSG_SELECT_CHAIN)) rf=send(er,0xffffffffu,r); auto expected_other=branch(er,0,r); assert(b==r && other==expected_other);
