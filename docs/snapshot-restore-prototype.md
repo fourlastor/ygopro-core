@@ -26,7 +26,12 @@ tests must construct an independent reference duel externally.
 ## Measured smoke result
 
 The pinned bundled Lua build and core compiled into `/tmp/libocgcore-snapshot.so`.
-`nm -D` showed exported strong `operator new` and `operator new[]` hooks.  A
+The ELF shared build uses `-Bsymbolic-functions`: a CoreCLR/PInvoke host has
+already loaded `libstdc++`, whose globally preemptible allocator symbols would
+otherwise intercept this DSO's `operator new`/`delete` PLT calls.  The focused
+harness therefore also reruns under `LD_PRELOAD=$(c++ -print-file-name=libstdc++.so)`;
+the unbound build diverges at the first chain snapshot, while the bound build
+remains exact.  A
 no-card duel was advanced to an external idle-command boundary, snapshotted,
 given end-phase response `7`, restored in place, and given response `7` again.
 Both continuation status and binary engine message were identical (`exact=1`).

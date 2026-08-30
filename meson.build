@@ -7,8 +7,14 @@ project('ocgcore', 'cpp',
 lua_dep = dependency('lua-5.4')
 
 args = []
+link_args = []
 if get_option('default_library') == 'shared'
 	args += ['-DOCGCORE_EXPORT_FUNCTIONS', '-fvisibility=hidden']
+	# Keep core-internal allocation calls inside this ELF DSO.  dlopen hosts
+	# otherwise preempt the arena-aware global new/delete hooks with libstdc++.
+	if host_machine.system() == 'linux' or host_machine.system() == 'freebsd'
+		link_args += ['-Wl,-Bsymbolic-functions']
+	endif
 endif
 
 ocgcore_src = files([
@@ -31,4 +37,4 @@ ocgcore_src = files([
 	'scriptlib.cpp',
 ])
 
-library('ocgcore', ocgcore_src, cpp_args : args, dependencies : lua_dep)
+library('ocgcore', ocgcore_src, cpp_args : args, link_args : link_args, dependencies : lua_dep)
