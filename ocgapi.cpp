@@ -48,7 +48,11 @@ int OCG_CreateDuel(OCG_Duel* out_ocg_duel, const OCG_DuelOptions* options_ptr) {
 	duel_arena* arena = nullptr;
 	duel* duelPtr = nullptr;
 	try {
-		arena = new duel_arena(64u * 1024u * 1024u);
+		// The WC2011 full deck pool can retain substantially more Lua/group
+		// bookkeeping than the early prototype fixtures.  Snapshots copy only
+		// arena.used(), so reserve address space generously without increasing
+		// per-snapshot payload.
+		arena = new duel_arena(256u * 1024u * 1024u);
 		duel_arena_scope scope(arena);
 		duelPtr = new duel(options, valid_lua_lib, arena);
 	} catch(const std::bad_alloc&) {
