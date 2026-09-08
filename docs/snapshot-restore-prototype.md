@@ -46,7 +46,11 @@ feasibility numbers, not a production benchmark.
 ## Current boundaries and blockers
 
 This is intentionally a bounded-growth containment prototype: the arena is
-monotonic, Lua `realloc` allocates-and-copies, and frees are no-ops.  It needs
+monotonic, growing non-tail Lua `realloc` allocates-and-copies, and frees are
+no-ops. Shrinking or unchanged Lua blocks retain their allocation, and the
+last allocation can grow in place, reducing arena growth and snapshot traffic.
+The allocator regression harness covers these paths and preserved contents.
+It needs
 a configurable arena size and lifetime/high-water benchmark before production.
 Host callbacks suspend TLS arena routing; callback-returned card data is copied
 before `cardReaderDone`, and API re-entry is explicitly supported.  All public

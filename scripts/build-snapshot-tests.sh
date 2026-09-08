@@ -11,6 +11,8 @@ core=(card.cpp duel.cpp duel_arena.cpp effect.cpp field.cpp libgroup.cpp interpr
 c++ -std=c++17 -fPIC -shared -Wl,-Bsymbolic-functions -DOCGCORE_EXPORT_FUNCTIONS -I "$root" -I "$root/lua" -I "$root/lua/src" -include "$root/lua/luaconf-customize.h" "${lua[@]}" "${core[@]/#/$root/}" -o "$out/libocgcore-snapshot.so"
 c++ -std=c++17 -I "$root" "$root/tests/snapshot_restore.cpp" -L "$out" -locgcore-snapshot -Wl,-rpath,"$out" -o "$out/snapshot_restore"
 "$out/snapshot_restore"
+c++ -std=c++17 -I "$root" "$root/tests/arena_reallocate.cpp" -L "$out" -locgcore-snapshot -Wl,-rpath,"$out" -o "$out/arena_reallocate"
+"$out/arena_reallocate"
 # Reproduce the managed dlopen symbol scope: libstdc++ is globally loaded
 # before the native core.  This must remain exact; the ordinary startup-linked
 # binary alone cannot detect allocator-symbol preemption.

@@ -21,6 +21,16 @@ void* duel_arena::allocate(size_t size, size_t alignment) {
 void* duel_arena::reallocate(void* ptr, size_t old_size, size_t new_size) {
 	if(!ptr) return allocate(new_size, alignof(std::max_align_t));
 	if(new_size == 0) return nullptr;
+	// A monotonic arena cannot reclaim the old block. Keep it when shrinking
+	// instead of allocating and copying another block that enlarges snapshots.
+	if(new_size <= old_size) return ptr;
+	// The last allocation can grow without abandoning its existing bytes.
+	if(static_cast<uint8_t*>(ptr) + old_size == storage + used_bytes) {
+		const size_t extra = new_size - old_size;
+		if(extra > capacity - used_bytes) throw std::bad_alloc();
+		used_bytes += extra;
+		return ptr;
+	}
 	void* result = allocate(new_size, alignof(std::max_align_t));
 	std::memcpy(result, ptr, old_size < new_size ? old_size : new_size);
 	return result;

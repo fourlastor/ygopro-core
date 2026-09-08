@@ -148,8 +148,8 @@ duel::snapshot_state duel::make_snapshot() const {
 	snapshot.owner = arena;
 	if(arena) {
 		snapshot.arena_used = arena->used();
-		snapshot.arena_image.resize(snapshot.arena_used);
-		std::memcpy(snapshot.arena_image.data(), arena->data(), snapshot.arena_used);
+		// Copy-initialize the image without first zero-filling bytes we overwrite.
+		snapshot.arena_image.assign(arena->data(), arena->data() + snapshot.arena_used);
 	}
 	return snapshot;
 }
