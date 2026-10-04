@@ -2,6 +2,26 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
+
+// Aligned memory from outside an arena. Windows has no aligned_alloc: its aligned blocks come
+// from _aligned_malloc and go back through _aligned_free, never free.
+static void* aligned_allocate(size_t alignment, size_t size) {
+#if defined(_WIN32)
+	return _aligned_malloc(size, alignment);
+#else
+	return std::aligned_alloc(alignment, size);
+#endif
+}
+static void aligned_release(void* ptr) noexcept {
+#if defined(_WIN32)
+	_aligned_free(ptr);
+#else
+	std::free(ptr);
+#endif
+}
 
 static thread_local duel_arena* active_arena = nullptr;
 duel_arena* current_duel_arena() { return active_arena; }
@@ -37,7 +57,7 @@ void* operator new(std::size_t size, std::align_val_t alignment) {
 	if(auto* arena = current_duel_arena()) return arena->allocate(size, static_cast<size_t>(alignment));
 	const size_t align = static_cast<size_t>(alignment);
 	const size_t rounded = (size + align - 1) & ~(align - 1);
-	if(void* p = std::aligned_alloc(align, rounded)) return p;
+	if(void* p = aligned_allocate(align, rounded)) return p;
 	throw std::bad_alloc();
 }
 void* operator new[](std::size_t size, std::align_val_t alignment) { return ::operator new(size, alignment); }
@@ -49,11 +69,12 @@ void operator delete(void* ptr) noexcept { if(!current_duel_arena() || !current_
 void operator delete[](void* ptr) noexcept { ::operator delete(ptr); }
 void operator delete(void* ptr, std::size_t) noexcept { ::operator delete(ptr); }
 void operator delete[](void* ptr, std::size_t) noexcept { ::operator delete(ptr); }
-void operator delete(void* ptr, std::align_val_t) noexcept { ::operator delete(ptr); }
-void operator delete[](void* ptr, std::align_val_t) noexcept { ::operator delete(ptr); }
-void operator delete(void* ptr, std::size_t, std::align_val_t) noexcept { ::operator delete(ptr); }
-void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept { ::operator delete(ptr); }
+static void delete_aligned(void* ptr) noexcept { if(!current_duel_arena() || !current_duel_arena()->contains(ptr)) aligned_release(ptr); }
+void operator delete(void* ptr, std::align_val_t) noexcept { delete_aligned(ptr); }
+void operator delete[](void* ptr, std::align_val_t) noexcept { delete_aligned(ptr); }
+void operator delete(void* ptr, std::size_t, std::align_val_t) noexcept { delete_aligned(ptr); }
+void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept { delete_aligned(ptr); }
 void operator delete(void* ptr, const std::nothrow_t&) noexcept { ::operator delete(ptr); }
 void operator delete[](void* ptr, const std::nothrow_t&) noexcept { ::operator delete(ptr); }
-void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept { ::operator delete(ptr); }
-void operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept { ::operator delete(ptr); }
+void operator delete(void* ptr, std::align_val_t, const std::nothrow_t&) noexcept { delete_aligned(ptr); }
+void operator delete[](void* ptr, std::align_val_t, const std::nothrow_t&) noexcept { delete_aligned(ptr); }
