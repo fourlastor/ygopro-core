@@ -1,11 +1,15 @@
+--old premake5 support
+if not externalincludedirs then
+	externalincludedirs = sysincludedirs
+end
 local ocgcore_config=function()
 	files { "*.h", "*.hpp", "*.cpp", "RNG/*.hpp", "RNG/*.cpp" }
 	warnings "Extra"
 	cppdialect "C++17"
 	rtti "Off"
-	
+
 	filter "configurations:Release"
-		optimize "Speed"	
+		optimize "Speed"
 	filter "configurations:Debug"
 		optimize "Off"
 	filter "action:not vs*"
@@ -13,11 +17,11 @@ local ocgcore_config=function()
 	filter "system:linux"
 		linkoptions { "-Wl,--no-undefined" }
 		links { "pthread" }
-	filter { "system:macosx", "files:processor_visit.cpp" }
+	filter { "system:macosx or ios", "files:processor_visit.cpp" }
 		buildoptions { "-fno-exceptions" }
 	filter {}
 	links { "lua" }
-	includedirs { "lua/src" }
+	externalincludedirs { "lua/src" }
 end
 
 if not subproject then
@@ -53,11 +57,18 @@ if not subproject then
 	filter { "action:vs*", "platforms:Win32 or x64" }
 		vectorextensions "SSE2"
 		if _OPTIONS["oldwindows"] then
+			if _ACTION >= "vs2019" then
+				externalincludedirs = includedirs
+			end
 			toolset "v141_xp"
 		end
 
 	filter "action:vs*"
-		flags "MultiProcessorCompile"
+		if multiprocessorcompile then
+			multiprocessorcompile "On"
+		else
+			flags "MultiProcessorCompile"
+		end
 
 	filter "configurations:Debug"
 		defines "_DEBUG"
@@ -117,10 +128,18 @@ project "ocgcore"
 
 project "ocgcoreshared"
 	kind "SharedLib"
-	flags "NoImportLib"
--- 	filter "configurations:Release"
--- 		flags "LinkTimeOptimization"
--- 	filter {}
+	if useimportlib then
+		useimportlib "Off"
+	else
+		flags "NoImportLib"
+	end
+	-- filter "configurations:Release"
+		-- if linktimeoptimization then
+			-- linktimeoptimization "On"
+		-- else
+			-- flags "LinkTimeOptimization"
+		-- end
+	-- filter {}
 	targetname "ocgcore"
 	defines "OCGCORE_EXPORT_FUNCTIONS"
 	staticruntime "on"

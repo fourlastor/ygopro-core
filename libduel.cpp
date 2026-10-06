@@ -688,7 +688,7 @@ LUA_STATIC_FUNCTION(ReturnToField) {
 	pcard->enable_field_effect(false);
 	pduel->game_field->adjust_instant();
 	pduel->game_field->refresh_location_info_instant();
-	pduel->game_field->move_to_field(pcard, pcard->previous.controler, pcard->previous.controler, pcard->previous.location, pos, TRUE, 1, zone, FALSE, LOCATION_REASON_TOFIELD | LOCATION_REASON_RETURN);
+	pduel->game_field->move_to_field(pcard, pcard->previous.controler, pcard->previous.controler, pcard->previous.location, pos, TRUE, 1, zone, FALSE, LOCATION_REASON::RETURN_TOFIELD);
 	return yieldk({
 		lua_pushboolean(L, pduel->game_field->returns.at<int32_t>(0));
 		return 1;
@@ -839,7 +839,15 @@ LUA_STATIC_FUNCTION(ConfirmDecktop) {
 		message->write<uint8_t>(pcard->current.location);
 		message->write<uint32_t>(pcard->current.sequence);
 	}
-	return yield();
+	return yieldk({
+		auto playerid = lua_get<uint8_t>(L, 1);
+		auto& main = pduel->game_field->player[playerid].list_main;
+		const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), main.size());
+		const auto offset = main.size() - count;
+		auto pgroup = pduel->new_group(main.begin() + offset, main.end());
+		interpreter::pushobject(L, pgroup);
+		return 1;
+	});
 }
 LUA_STATIC_FUNCTION(ConfirmExtratop) {
 	check_param_count(L, 2);
@@ -861,7 +869,16 @@ LUA_STATIC_FUNCTION(ConfirmExtratop) {
 		message->write<uint8_t>(pcard->current.location);
 		message->write<uint32_t>(pcard->current.sequence);
 	}
-	return yield();
+	return yieldk({
+		auto playerid = lua_get<uint8_t>(L, 1);
+		const auto& player = pduel->game_field->player[playerid];
+		auto& extra = player.list_extra;
+		const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), extra.size() - player.extra_p_count);
+		auto begin = extra.rbegin() + player.extra_p_count;
+		auto pgroup = pduel->new_group(begin, begin + count);
+		interpreter::pushobject(L, pgroup);
+		return 1;
+	});
 }
 LUA_STATIC_FUNCTION(ConfirmCards) {
 	check_param_count(L, 2);
@@ -1363,8 +1380,10 @@ LUA_STATIC_FUNCTION(ShuffleSetCard) {
 	auto pgroup = lua_get<group*, true>(L, 1);
 	if(pgroup->container.size() <= 0)
 		return 0;
-	card* ms[7];
-	uint8_t seq[7];
+	if(pgroup->container.size() > 5)
+		return 0;
+	card* ms[5];
+	uint8_t seq[5];
 	auto it = pgroup->container.begin();
 	uint8_t ct = 0;
 	ms[ct] = *it;
@@ -1404,9 +1423,11 @@ LUA_STATIC_FUNCTION(ShuffleSetCard) {
 	auto message = pduel->new_message(MSG_SHUFFLE_SET_CARD);
 	message->write<uint8_t>(loc);
 	message->write<uint8_t>(ct);
+	for(auto* pcard : pgroup->container) {
+		message->write(pcard->get_info_location());
+	}
 	for(uint32_t i = 0; i < ct; ++i) {
 		card* pcard = ms[i];
-		message->write(pcard->get_info_location());
 		list[seq[i]] = pcard;
 		pcard->current.sequence = seq[i];
 		field->raise_single_event(pcard, nullptr, EVENT_MOVE, pcard->current.reason_effect, pcard->current.reason, pcard->current.reason_player, tp, 0);
@@ -1414,9 +1435,9 @@ LUA_STATIC_FUNCTION(ShuffleSetCard) {
 	field->raise_event(pgroup->container, EVENT_MOVE, field->core.reason_effect, 0, field->core.reason_player, tp, 0);
 	field->process_single_event();
 	field->process_instant_event();
-	for(uint32_t i = 0; i < ct; ++i) {
-		if(ms[i]->xyz_materials.size()) {
-			message->write(ms[i]->get_info_location());
+	for(auto* pcard : pgroup->container) {
+		if(pcard->xyz_materials.size()) {
+			message->write(pcard->get_info_location());
 		} else {
 			message->write(loc_info{});
 		}
@@ -1668,10 +1689,10 @@ LUA_STATIC_FUNCTION(GetLocationCount) {
 	if(playerid != 0 && playerid != 1)
 		return 0;
 	auto uplayer = lua_get<uint8_t>(L, 3, pduel->game_field->core.reason_player);
-	auto reason = lua_get<uint32_t, LOCATION_REASON_TOFIELD>(L, 4);
+	auto reason = lua_get<uint32_t, static_cast<uint32_t>(LOCATION_REASON::TOFIELD)>(L, 4);
 	auto zone = lua_get<uint32_t, 0xff>(L, 5);
 	uint32_t list = 0;
-	lua_pushinteger(L, pduel->game_field->get_useable_count(nullptr, playerid, location, uplayer, reason, zone, &list));
+	lua_pushinteger(L, pduel->game_field->get_useable_count(nullptr, playerid, location, uplayer, static_cast<LOCATION_REASON>(reason), zone, &list));
 	lua_pushinteger(L, list);
 	return 2;
 }
@@ -1702,10 +1723,10 @@ LUA_STATIC_FUNCTION(GetMZoneCount) {
 		swapped = true;
 	}
 	auto uplayer = lua_get<uint8_t>(L, 3, pduel->game_field->core.reason_player);
-	auto reason = lua_get<uint32_t, LOCATION_REASON_TOFIELD>(L, 4);
+	auto reason = lua_get<uint32_t, static_cast<uint32_t>(LOCATION_REASON::TOFIELD)>(L, 4);
 	auto zone = lua_get<uint32_t, 0xff>(L, 5);
 	uint32_t list = 0;
-	lua_pushinteger(L, pduel->game_field->get_useable_count(nullptr, playerid, LOCATION_MZONE, uplayer, reason, zone, &list));
+	lua_pushinteger(L, pduel->game_field->get_useable_count(nullptr, playerid, LOCATION_MZONE, uplayer, static_cast<LOCATION_REASON>(reason), zone, &list));
 	lua_pushinteger(L, list);
 	if(swapped) {
 		pduel->game_field->player[0].used_location = used_location[0];
@@ -1782,11 +1803,11 @@ LUA_STATIC_FUNCTION(GetUsableMZoneCount) {
 	auto uplayer = lua_get<uint8_t>(L, 2, pduel->game_field->core.reason_player);
 	uint32_t zone = 0xff;
 	uint32_t flag1, flag2;
-	int32_t ct1 = pduel->game_field->get_tofield_count(nullptr, playerid, LOCATION_MZONE, uplayer, LOCATION_REASON_TOFIELD, zone, &flag1);
+	int32_t ct1 = pduel->game_field->get_tofield_count(nullptr, playerid, LOCATION_MZONE, uplayer, LOCATION_REASON::TOFIELD, zone, &flag1);
 	int32_t ct2 = pduel->game_field->get_spsummonable_count_fromex(nullptr, playerid, uplayer, zone, &flag2);
 	int32_t ct3 = field::field_used_count[~(flag1 | flag2) & 0x1f];
 	int32_t count = ct1 + ct2 - ct3;
-	int32_t limit = pduel->game_field->get_mzone_limit(playerid, uplayer, LOCATION_REASON_TOFIELD);
+	int32_t limit = pduel->game_field->get_mzone_limit(playerid, uplayer, LOCATION_REASON::TOFIELD);
 	if(count > limit)
 		count = limit;
 	lua_pushinteger(L, count);
@@ -1931,6 +1952,15 @@ LUA_STATIC_FUNCTION(GetChainInfo) {
 			break;
 		case CHAININFO::TRIGGERING_RANK:
 			lua_pushinteger(L, ch->triggering_state.rank);
+			break;
+		case CHAININFO::TRIGGERING_LSCALE:
+			lua_pushinteger(L, ch->triggering_state.lscale);
+			break;
+		case CHAININFO::TRIGGERING_RSCALE:
+			lua_pushinteger(L, ch->triggering_state.rscale);
+			break;
+		case CHAININFO::TRIGGERING_LINK:
+			lua_pushinteger(L, ch->triggering_state.link);
 			break;
 		case CHAININFO::TRIGGERING_ATTRIBUTE:
 			lua_pushinteger(L, ch->triggering_state.attribute);
@@ -2215,11 +2245,11 @@ LUA_STATIC_FUNCTION(GetDeckbottomGroup) {
 LUA_STATIC_FUNCTION(GetExtraTopGroup) {
 	check_param_count(L, 2);
 	auto playerid = lua_get<uint8_t>(L, 1);
-	auto count = lua_get<uint32_t>(L, 2);
-	auto pgroup = pduel->new_group();
-	auto cit = pduel->game_field->player[playerid].list_extra.rbegin() + pduel->game_field->player[playerid].extra_p_count;
-	for(uint32_t i = 0; i < count && cit != pduel->game_field->player[playerid].list_extra.rend(); ++i, ++cit)
-		pgroup->container.insert(*cit);
+	const auto& player = pduel->game_field->player[playerid];
+	auto& extra = player.list_extra;
+	const auto count = std::min<size_t>(lua_get<uint32_t>(L, 2), extra.size() - player.extra_p_count);
+	auto begin = extra.rbegin() + player.extra_p_count;
+	auto pgroup = pduel->new_group(begin, begin + count);
 	interpreter::pushobject(L, pgroup);
 	return 1;
 }
@@ -2704,7 +2734,7 @@ LUA_STATIC_FUNCTION(SelectFusionMaterial) {
 		forced_materials = pduel->new_group(pcard_);
 	else
 		forced_materials = lua_get<group*>(L, 4);
-	auto chkf = lua_get<uint32_t, PLAYER_NONE>(L, 5);
+	auto chkf = lua_get<uint64_t, PLAYER_NONE>(L, 5);
 	pduel->game_field->emplace_process<Processors::SelectFusion>(playerid, pgroup, chkf, forced_materials, pcard);
 	return yieldk({
 		auto pgroup = pduel->new_group(pduel->game_field->core.fusion_materials);
@@ -2733,7 +2763,8 @@ LUA_STATIC_FUNCTION(ReleaseRitualMaterial) {
 	check_action_permission(L);
 	check_param_count(L, 1);
 	auto pgroup = lua_get<group*, true>(L, 1);
-	pduel->game_field->ritual_release(pgroup->container);
+	auto release_deck = lua_get<bool, false>(L, 2);
+	pduel->game_field->ritual_release(pgroup->container, release_deck);
 	return yield();
 }
 LUA_STATIC_FUNCTION(GetFusionMaterial) {
@@ -3131,7 +3162,7 @@ LUA_STATIC_FUNCTION(SelectDisableField) {
 	filter |= lua_get<uint32_t>(L, 5, filter);
 	uint32_t ct1 = 0, ct2 = 0, ct3 = 0, ct4 = 0, plist = 0, flag = 0xffffffff;
 	if(location1 & LOCATION_MZONE) {
-		ct1 = pduel->game_field->get_useable_count(nullptr, playerid, LOCATION_MZONE, PLAYER_NONE, 0, 0xff, &plist);
+		ct1 = pduel->game_field->get_useable_count(nullptr, playerid, LOCATION_MZONE, PLAYER_NONE, LOCATION_REASON::NONE, 0xff, &plist);
 		if (all_field) {
 			plist &= ~0x60;
 			if (!pduel->game_field->is_location_useable(playerid, LOCATION_MZONE, 5))
@@ -3146,7 +3177,7 @@ LUA_STATIC_FUNCTION(SelectDisableField) {
 		flag = (flag & 0xffffff00) | plist;
 	}
 	if(location1 & LOCATION_SZONE) {
-		ct2 = pduel->game_field->get_useable_count(nullptr, playerid, LOCATION_SZONE, PLAYER_NONE, 0, 0xff, &plist);
+		ct2 = pduel->game_field->get_useable_count(nullptr, playerid, LOCATION_SZONE, PLAYER_NONE, LOCATION_REASON::NONE, 0xff, &plist);
 		if (all_field) {
 			plist &= ~0xe0;
 			if (!pduel->game_field->is_location_useable(playerid, LOCATION_SZONE, 5))
@@ -3165,7 +3196,7 @@ LUA_STATIC_FUNCTION(SelectDisableField) {
 		flag = (flag & 0xffff00ff) | (plist << 8);
 	}
 	if(location2 & LOCATION_MZONE) {
-		ct3 = pduel->game_field->get_useable_count(nullptr, 1 - playerid, LOCATION_MZONE, PLAYER_NONE, 0, 0xff, &plist);
+		ct3 = pduel->game_field->get_useable_count(nullptr, 1 - playerid, LOCATION_MZONE, PLAYER_NONE, LOCATION_REASON::NONE, 0xff, &plist);
 		if (all_field) {
 			plist &= ~0x60;
 			if (!pduel->game_field->is_location_useable(1 - playerid, LOCATION_MZONE, 5))
@@ -3180,7 +3211,7 @@ LUA_STATIC_FUNCTION(SelectDisableField) {
 		flag = (flag & 0xff00ffff) | (plist << 16);
 	}
 	if(location2 & LOCATION_SZONE) {
-		ct4 = pduel->game_field->get_useable_count(nullptr, 1 - playerid, LOCATION_SZONE, PLAYER_NONE, 0, 0xff, &plist);
+		ct4 = pduel->game_field->get_useable_count(nullptr, 1 - playerid, LOCATION_SZONE, PLAYER_NONE, LOCATION_REASON::NONE, 0xff, &plist);
 		if (all_field) {
 			plist &= ~0xe0;
 			if (!pduel->game_field->is_location_useable(1 - playerid, LOCATION_SZONE, 5))
@@ -3695,7 +3726,7 @@ LUA_STATIC_FUNCTION(IsPlayerCanFlipSummon) {
 	return 1;
 }
 LUA_STATIC_FUNCTION(IsPlayerCanSpecialSummonMonster) {
-	check_param_count(L, 9);
+	check_param_count(L, 2);
 	auto playerid = lua_get<uint8_t>(L, 1);
 	if(playerid != 0 && playerid != 1) {
 		lua_pushboolean(L, 0);
@@ -3801,7 +3832,8 @@ LUA_STATIC_FUNCTION(IsPlayerCanSendtoGrave) {
 	else {
 		check_param_count(L, 2);
 		auto pcard = lua_get<card*, true>(L, 2);
-		lua_pushboolean(L, pduel->game_field->is_player_can_send_to_grave(playerid, pcard));
+		auto reason = lua_get<uint32_t, REASON_EFFECT>(L, 3);
+		lua_pushboolean(L, pduel->game_field->is_player_can_send_to_grave(playerid, pcard, reason));
 	}
 	return 1;
 }

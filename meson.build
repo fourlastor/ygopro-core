@@ -1,21 +1,29 @@
 project('ocgcore', 'cpp',
 	license : 'AGPL-3.0-or-later',
-	default_options : ['cpp_std=c++17'],
-	version : '9.1'
+	default_options : ['cpp_std=c++17', 'warning_level=3', 'cpp_rtti=false']
+		+ (get_option('backend').startswith('vs') ? ['backend_startup_project=ocgcore'] : []),
+	version : '11.0'
 )
 
-lua_dep = dependency('lua-5.4')
+subdir('lua')
 threads_dep = dependency('threads')
 
-args = []
-link_args = []
+linker_args = []
+ocg_args = []
 if get_option('default_library') == 'shared'
-	args += ['-DOCGCORE_EXPORT_FUNCTIONS', '-fvisibility=hidden']
+	ocg_args += ['-DOCGCORE_EXPORT_FUNCTIONS']
+	if meson.get_compiler('cpp').get_id() != 'msvc'
+		ocg_args += ['-fvisibility=hidden']
+	endif
 	# Keep core-internal allocation calls inside this ELF DSO.  dlopen hosts
 	# otherwise preempt the arena-aware global new/delete hooks with libstdc++.
 	if host_machine.system() == 'linux' or host_machine.system() == 'freebsd'
-		link_args += ['-Wl,-Bsymbolic-functions']
+		linker_args += ['-Wl,-Bsymbolic-functions']
 	endif
+endif
+
+if host_machine.system() == 'darwin'
+	ocg_args += ['-D_LIBCPP_NO_EXCEPTIONS']
 endif
 
 ocgcore_src = files([
@@ -39,4 +47,5 @@ ocgcore_src = files([
 	'scriptlib.cpp',
 ])
 
-library('ocgcore', ocgcore_src, cpp_args : args, link_args : link_args, dependencies : [lua_dep, threads_dep])
+ocgcore_lib = library('ocgcore', ocgcore_src, cpp_args : ocg_args, link_args : linker_args, dependencies : [lua_dep, threads_dep])
+ocgcore_dep = declare_dependency(include_directories : include_directories('./'), link_with : ocgcore_lib, dependencies : [lua_dep, threads_dep])

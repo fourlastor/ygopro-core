@@ -1479,7 +1479,8 @@ LUA_FUNCTION(IsAbleToExtra) {
 	return 1;
 }
 LUA_FUNCTION(IsAbleToGrave) {
-	lua_pushboolean(L, self->is_capable_send_to_grave(pduel->game_field->core.reason_player));
+	auto reason = lua_get<uint32_t, REASON_EFFECT>(L, 2);
+	lua_pushboolean(L, self->is_capable_send_to_grave(pduel->game_field->core.reason_player, reason));
 	return 1;
 }
 LUA_FUNCTION(IsAbleToRemove) {
@@ -1882,7 +1883,7 @@ LUA_FUNCTION(IsCanBeSynchroMaterial) {
 		scard = lua_get<card*, true>(L, 2);
 	if(lua_gettop(L) >= 3 && !lua_isnoneornil(L, 3))
 		tuner = lua_get<card*, true>(L, 3);
-	auto playerid = lua_get<uint8_t, PLAYER_NONE>(L, 4);
+	auto playerid = lua_get<uint8_t>(L, 4, pduel->game_field->core.reason_player);
 	lua_pushboolean(L, self->is_can_be_synchro_material(scard, playerid, tuner));
 	return 1;
 }
@@ -1917,7 +1918,7 @@ LUA_FUNCTION(IsCanBeMaterial) {
 	card* scard = nullptr;
 	if(lua_gettop(L) >= 3)
 		scard = lua_get<card*, true>(L, 3);
-	auto playerid = lua_get<uint8_t, PLAYER_NONE>(L, 4);
+	auto playerid = lua_get<uint8_t>(L, 4, pduel->game_field->core.reason_player);
 	lua_pushboolean(L, self->is_can_be_material(scard, sumtype, playerid));
 	return 1;
 }
@@ -1930,7 +1931,7 @@ LUA_FUNCTION(CheckFusionMaterial) {
 		cg = pduel->new_group(_pcard);
 	else
 		cg = lua_get<group*>(L, 3);
-	auto chkf = lua_get<uint32_t, PLAYER_NONE>(L, 4);
+	auto chkf = lua_get<uint64_t, PLAYER_NONE>(L, 4);
 	lua_pushboolean(L, self->fusion_check(pgroup, cg, chkf));
 	return 1;
 }

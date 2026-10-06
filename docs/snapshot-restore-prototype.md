@@ -72,9 +72,11 @@ duel/query APIs establish an arena scope.  The committed fixture exercises Lua
 effect activation, an opponent chain response, and valid two-card selection;
 it is still intentionally smaller than a production card corpus.
 
-The source `meson.build` also named absent `group.cpp`; it now names
-`libgroup.cpp`, but it still links system Lua rather than the pinned C++ Lua
-submodule.  The measured compile used that pinned Lua explicitly.
+The Meson build now compiles the pinned Lua submodule as C++, includes the
+arena and hidden-card swap sources, and binds allocator calls internally in
+shared ELF builds. Its exported subproject dependency includes Lua and thread
+requirements. The Visual Studio startup-project option is applied only when
+using a Visual Studio backend, so Ninja builds remain supported.
 
 ## Hidden-card swap
 

@@ -309,8 +309,8 @@ public:
 	effect* is_affected_by_effect(int32_t code, card* target);
 	void get_card_effect(uint32_t code, effect_set* eset);
 	void get_own_effects(effect_set* eset);
-	int32_t fusion_check(group* fusion_m, group* cg, uint32_t chkf);
-	void fusion_filter_valid(group* fusion_m, group* cg, uint32_t chkf, effect_set* eset);
+	int32_t fusion_check(group* fusion_m, group* cg, uint64_t chkf);
+	void fusion_filter_valid(group* fusion_m, group* cg, uint64_t chkf, effect_set* eset);
 	int32_t check_fusion_substitute(card* fcard);
 	int32_t is_not_tuner(card* scard, uint8_t playerid);
 
@@ -341,7 +341,7 @@ public:
 	int32_t is_releasable_by_summon(uint8_t playerid, card* pcard);
 	int32_t is_releasable_by_nonsummon(uint8_t playerid, uint32_t reason);
 	int32_t is_releasable_by_effect(uint8_t playerid, effect* peffect);
-	int32_t is_capable_send_to_grave(uint8_t playerid);
+	int32_t is_capable_send_to_grave(uint8_t playerid, uint32_t reason);
 	int32_t is_capable_send_to_hand(uint8_t playerid);
 	int32_t is_capable_send_to_deck(uint8_t playerid);
 	int32_t is_capable_send_to_extra(uint8_t playerid);

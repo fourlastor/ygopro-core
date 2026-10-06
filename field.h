@@ -428,17 +428,17 @@ public:
 	card* get_field_card(uint32_t playerid, uint32_t location, uint32_t sequence);
 	int32_t is_field_location_valid(uint32_t location, uint32_t sequence);
 	int32_t is_location_useable(uint32_t playerid, uint32_t location, uint32_t sequence);
-	int32_t get_useable_count(card* pcard, uint8_t playerid, uint8_t location, uint8_t uplayer, uint32_t reason, uint32_t zone = 0xff, uint32_t* list = nullptr);
+	int32_t get_useable_count(card* pcard, uint8_t playerid, uint8_t location, uint8_t uplayer, LOCATION_REASON reason, uint32_t zone = 0xff, uint32_t* list = nullptr);
 	int32_t get_useable_count_fromex(card* pcard, uint8_t playerid, uint8_t uplayer, uint32_t zone = 0xff, uint32_t* list = nullptr);
 	int32_t get_spsummonable_count(card* pcard, uint8_t playerid, uint32_t zone = 0xff, uint32_t* list = nullptr);
 	int32_t get_spsummonable_count_fromex(card* pcard, uint8_t playerid, uint8_t uplayer, uint32_t zone = 0xff, uint32_t* list = nullptr);
-	int32_t get_useable_count_other(card* pcard, uint8_t playerid, uint8_t location, uint8_t uplayer, uint32_t reason, uint32_t zone = 0xff, uint32_t* list = nullptr);
-	int32_t get_tofield_count(card* pcard, uint8_t playerid, uint8_t location, uint32_t uplayer, uint32_t reason, uint32_t zone = 0xff, uint32_t* list = nullptr);
+	int32_t get_useable_count_other(card* pcard, uint8_t playerid, uint8_t location, uint8_t uplayer, LOCATION_REASON reason, uint32_t zone = 0xff, uint32_t* list = nullptr);
+	int32_t get_tofield_count(card* pcard, uint8_t playerid, uint8_t location, uint32_t uplayer, LOCATION_REASON reason, uint32_t zone = 0xff, uint32_t* list = nullptr);
 	int32_t get_useable_count_fromex_rule4(card* pcard, uint8_t playerid, uint8_t uplayer, uint32_t zone = 0xff, uint32_t* list = nullptr);
 	int32_t get_spsummonable_count_fromex_rule4(card* pcard, uint8_t playerid, uint8_t uplayer, uint32_t zone = 0xff, uint32_t* list = nullptr);
-	int32_t get_mzone_limit(uint8_t playerid, uint8_t uplayer, uint32_t reason);
-	int32_t get_szone_limit(uint8_t playerid, uint8_t uplayer, uint32_t reason);
-	int32_t get_forced_zones(card* pcard, uint8_t playerid, uint8_t location, uint32_t uplayer, uint32_t reason);
+	int32_t get_mzone_limit(uint8_t playerid, uint8_t uplayer, LOCATION_REASON reason);
+	int32_t get_szone_limit(uint8_t playerid, uint8_t uplayer, LOCATION_REASON reason);
+	int32_t get_forced_zones(card* pcard, uint8_t playerid, uint8_t location, uint32_t uplayer, LOCATION_REASON reason);
 	uint32_t get_rule_zone_fromex(int32_t playerid, card* pcard);
 	uint32_t get_linked_zone(int32_t playerid, bool free = false, bool actually_linked = false);
 	void get_linked_cards(uint8_t self, uint8_t location1, uint8_t location2, card_set* cset);
@@ -486,7 +486,7 @@ public:
 	int32_t get_draw_count(uint8_t playerid);
 	void get_ritual_material(uint8_t playerid, effect* peffect, card_set* material, bool check_level);
 	void get_fusion_material(uint8_t playerid, card_set* material);
-	void ritual_release(const card_set& material);
+	void ritual_release(const card_set& material, bool release_deck);
 	void get_overlay_group(uint8_t playerid, uint8_t self, uint8_t oppo, card_set* pset, group* pgroup);
 	int32_t get_overlay_count(uint8_t playerid, uint8_t self, uint8_t oppo, group* pgroup);
 	void update_disable_check_list(effect* peffect);
@@ -540,7 +540,7 @@ public:
 	int32_t is_player_can_place_counter(uint8_t playerid, card* pcard, uint16_t countertype, uint16_t count);
 	int32_t is_player_can_remove_counter(uint8_t playerid, card* pcard, uint8_t self, uint8_t oppo, uint16_t countertype, uint16_t count, uint32_t reason);
 	int32_t is_player_can_remove_overlay_card(uint8_t playerid, group* pcard, uint8_t self, uint8_t oppo, uint16_t count, uint32_t reason);
-	int32_t is_player_can_send_to_grave(uint8_t playerid, card* pcard);
+	int32_t is_player_can_send_to_grave(uint8_t playerid, card* pcard, uint32_t reason);
 	int32_t is_player_can_send_to_hand(uint8_t playerid, card* pcard);
 	int32_t is_player_can_send_to_deck(uint8_t playerid, card* pcard);
 	int32_t is_player_can_remove(uint8_t playerid, card* pcard, uint32_t reason);
@@ -637,7 +637,7 @@ public:
 	void release(card* target, effect* reason_effect, uint32_t reason, uint8_t reason_player);
 	void send_to(card_set targets, effect* reason_effect, uint32_t reason, uint8_t reason_player, uint8_t playerid, uint16_t destination, uint32_t sequence, uint8_t position, bool ignore = false);
 	void send_to(card* target, effect* reason_effect, uint32_t reason, uint8_t reason_player, uint8_t playerid, uint16_t destination, uint32_t sequence, uint8_t position, bool ignore = false);
-	void move_to_field(card* target, uint8_t move_player, uint8_t playerid, uint16_t destination, uint8_t positions, bool enable = false, uint8_t ret = 0, uint8_t zone = 0xff, bool rule = false, uint8_t reason = 0, bool confirm = true);
+	void move_to_field(card* target, uint8_t move_player, uint8_t playerid, uint16_t destination, uint8_t positions, bool enable = false, uint8_t ret = 0, uint8_t zone = 0xff, bool rule = false, LOCATION_REASON reason = LOCATION_REASON::NONE, bool confirm = true);
 	void change_position(card_set targets, effect* reason_effect, uint8_t reason_player, uint8_t au, uint8_t ad, uint8_t du, uint8_t dd, uint32_t flag, bool enable = false);
 	void change_position(card* target, effect* reason_effect, uint8_t reason_player, uint8_t npos, uint32_t flag, bool enable = false);
 	void operation_replace(uint32_t type, uint16_t step, group* targets);
@@ -709,11 +709,6 @@ public:
 	bool process(Processors::RockPaperScissors& arg);
 };
 
-//Location Use Reason
-#define LOCATION_REASON_TOFIELD	0x1
-#define LOCATION_REASON_CONTROL	0x2
-#define LOCATION_REASON_COUNT	0x4
-#define LOCATION_REASON_RETURN	0x8
 //Chain Info
 #define CHAIN_DISABLE_ACTIVATE	0x01
 #define CHAIN_DISABLE_EFFECT	0x02
@@ -754,6 +749,9 @@ enum class CHAININFO {
 	TRIGGERING_SUMMON_TYPE,
 	TRIGGERING_SUMMON_PROC_COMPLETE,
 	TRIGGERING_SETCODES,
+	TRIGGERING_LINK,
+	TRIGGERING_LSCALE,
+	TRIGGERING_RSCALE,
 };
 
 //Timing

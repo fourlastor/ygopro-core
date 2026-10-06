@@ -500,7 +500,7 @@ lua_Integer interpreter::get_operation_value(card* pcard, int32_t findex, int32_
 	if(call_lua(current_state, 1 + extraargs, 1) != LUA_OK) {
 		pduel->handle_message(lua_get_string_or_empty(current_state, -1), OCG_LOG_TYPE_ERROR);
 	} else
-		result = lua_get<lua_Integer>(current_state, -1);
+		result = lua_get<lua_Integer, 0>(current_state, -1);
 	lua_pop(current_state, 1);
 	return result;
 }
@@ -703,6 +703,11 @@ int32_t interpreter::get_function_handle(lua_State* L, int32_t index) {
 
 void interpreter::print_stacktrace(lua_State* L) {
 	const auto pduel = lua_get<duel*>(L);
+#if LUA_VERSION_NUM < 505
+	// in lua 5.4 (and likely in 5.3 as well) luaL_traceback requires more than the 5 stack slots documented
+	// and doesn't automatically increase the stack to fit its needs
+	luaL_checkstack(L, 10, nullptr);
+#endif
 	ensure_luaL_stack(luaL_traceback, L, L, nullptr, 1);
 	auto len = lua_rawlen(L, -1);
 	/*checks for an empty stack*/
