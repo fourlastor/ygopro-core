@@ -15,6 +15,7 @@
 #include "lua_obj.h"
 #include "group.h"
 #include "scriptlib.h"
+#include "script_bytecode_cache.h"
 
 using namespace scriptlib;
 
@@ -220,11 +221,20 @@ void interpreter::register_obj(lua_obj* obj, const char* tablename, bool weak) {
 void interpreter::collect(bool full) {
 	lua_gc(current_state, full ? LUA_GCCOLLECT : LUA_GCSTEP, 0);
 }
+static script_bytecode_cache::bytecode cached_script(const char* buffer, size_t len, const char* name) {
+	// Static cache construction must also take place outside a duel arena.
+	duel_arena_scope outside(nullptr);
+	static script_bytecode_cache cache;
+	return cache.get(buffer, len, name);
+}
 bool interpreter::load_script(const char* buffer, int len, const char* script_name) {
 	if(!buffer)
 		return false;
+	const auto compiled = cached_script(buffer, len, script_name);
 	++no_action;
-	if(ensure_luaL_stack(luaL_loadbuffer, current_state, buffer, len, script_name) != LUA_OK
+	if(ensure_luaL_stack(luaL_loadbuffer, current_state,
+	                    compiled ? compiled->data() : buffer,
+	                    compiled ? compiled->size() : static_cast<size_t>(len), script_name) != LUA_OK
 	   || lua_pcall(current_state, 0, 0, 0) != LUA_OK) {
 		pduel->handle_message(lua_get_string_or_empty(current_state, -1), OCG_LOG_TYPE_ERROR);
 		lua_pop(current_state, 1);

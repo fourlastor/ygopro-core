@@ -12,6 +12,7 @@ local ocgcore_config=function()
 		buildoptions { "-Wno-unused-parameter", "-pedantic" }
 	filter "system:linux"
 		linkoptions { "-Wl,--no-undefined" }
+		links { "pthread" }
 	filter { "system:macosx", "files:processor_visit.cpp" }
 		buildoptions { "-fno-exceptions" }
 	filter {}

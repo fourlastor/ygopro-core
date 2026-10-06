@@ -106,6 +106,25 @@ Load a Lua card script or supporting script for the specified `duel.` Generally 
 - `length` Size of `buffer`
 - `name` Unique identifier of the script
 
+Text scripts use an internal, thread-safe bytecode cache shared by the duels
+in this engine instance. A hit requires both the same name and identical source
+bytes. Compilation happens in a temporary Lua state outside the duel arena;
+the resulting chunk is loaded and executed in each receiving duel's own state.
+Globals, closures and upvalues are never shared between duels. Source names and
+line information are retained for diagnostics. Binary input and scripts that
+cannot be cached use the normal loader.
+
+The cache retains up to 64 MiB of source, bytecode and name storage, plus bounded
+container metadata, and at most 4096 entries. Least recently used entries are
+evicted first; an in-flight load retains its chunk until it finishes. Oversized
+chunks may be compiled without being retained. Cached data is compatible with
+the Lua build of this engine instance and is not persisted to disk. It survives
+duel destruction and snapshot restore, and is released when the engine is unloaded.
+
+`scripts/build-snapshot-tests.sh` tests cache hits, source changes, eviction,
+diagnostics, isolated Lua state, concurrent loads and snapshot rollback, alongside
+the existing snapshot and allocator checks.
+
 ### Querying active duel states
 
 #### `uint32_t OCG_DuelQueryCount(OCG_Duel duel, uint8_t team, uint32_t loc)`

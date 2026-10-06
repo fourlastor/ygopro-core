@@ -6,7 +6,7 @@ an isolated feasibility experiment, not an ABI promise.
 
 ## Design
 
-`OCG_CreateDuel` reserves a 64 MiB `duel_arena`, enters a thread-local arena
+`OCG_CreateDuel` reserves a 256 MiB `duel_arena`, enters a thread-local arena
 scope, and placement-allocates the `duel` root there.  The scope is entered by
 the mutating/process/message/script public C API calls.  Its global C++
 `new`/`delete` hooks therefore contain core objects and STL allocations.
@@ -50,8 +50,22 @@ monotonic, growing non-tail Lua `realloc` allocates-and-copies, and frees are
 no-ops. Shrinking or unchanged Lua blocks retain their allocation, and the
 last allocation can grow in place, reducing arena growth and snapshot traffic.
 The allocator regression harness covers these paths and preserved contents.
-It needs
-a configurable arena size and lifetime/high-water benchmark before production.
+Destroying a snapshot releases its external byte image only. Restoring one
+rewinds the live arena cursor, allowing subsequent allocations to reuse the
+space allocated after that snapshot; it does not release the arena reservation
+to the operating system. Allocations discarded before the restored boundary
+remain in the image. Destroying the duel releases the entire arena. Thus a
+long-lived duel can accumulate dead allocations, but they do not survive its
+destruction.
+The arena still needs a configurable size and lifetime/high-water benchmark
+before production.
+
+The shared script bytecode cache lives outside the arena. Only compiled bytes
+are cached, while each loaded Lua function and its mutable state remain inside
+the receiving duel. Temporary parser allocations therefore no longer enlarge
+snapshots. Cache eviction or another duel's destruction cannot invalidate an
+in-flight load, and snapshot restore does not roll back the cache itself.
+
 Host callbacks suspend TLS arena routing; callback-returned card data is copied
 before `cardReaderDone`, and API re-entry is explicitly supported.  All public
 duel/query APIs establish an arena scope.  The committed fixture exercises Lua

@@ -5,6 +5,7 @@ project('ocgcore', 'cpp',
 )
 
 lua_dep = dependency('lua-5.4')
+threads_dep = dependency('threads')
 
 args = []
 link_args = []
@@ -38,4 +39,4 @@ ocgcore_src = files([
 	'scriptlib.cpp',
 ])
 
-library('ocgcore', ocgcore_src, cpp_args : args, link_args : link_args, dependencies : lua_dep)
+library('ocgcore', ocgcore_src, cpp_args : args, link_args : link_args, dependencies : [lua_dep, threads_dep])
