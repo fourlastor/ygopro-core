@@ -61,3 +61,16 @@ it is still intentionally smaller than a production card corpus.
 The source `meson.build` also named absent `group.cpp`; it now names
 `libgroup.cpp`, but it still links system Lua rather than the pinned C++ Lua
 submodule.  The measured compile used that pinned Lua explicitly.
+
+## Hidden-card swap
+
+`OCG_DuelSwapHiddenCards` (`duel_swap.cpp`) exchanges two cards of one player
+between the deck, the hand and the Spell & Trap Zone.  A search restores a
+snapshot, deals again what one player cannot see with it, and plays the duel
+on from there.  It cancels both cards' field effects, exchanges their slots
+and their placement state, applies the field effects again and calls
+`adjust_instant`, inside the duel's arena scope.  It refuses (returns 0) when
+a slot is empty or both name the same slot, when either card is referred to
+by a link of the current chain, when a Spell & Trap Zone card is not
+face-down, and when a card that is neither Spell nor Trap would land in that
+zone.  Face-down monsters cannot be exchanged.

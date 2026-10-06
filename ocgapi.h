@@ -42,6 +42,13 @@ OCGAPI int OCG_DuelRestoreSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot snapshot)
 OCGAPI void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot);
 OCGAPI uint64_t OCG_DuelArenaUsed(OCG_Duel ocg_duel);
 OCGAPI uint64_t OCG_DuelSnapshotSize(OCG_DuelSnapshot snapshot);
+/* Exchange two cards of one player (team) between the deck, the hand and the
+ * Spell & Trap Zone: the places a card can be hidden in.  Returns 1, or 0 when
+ * it refuses: an empty slot, the same slot twice, a card a link of the current
+ * chain refers to, a Spell & Trap Zone card that is not face-down, or a card
+ * that is neither Spell nor Trap landing in that zone.  Face-down monsters
+ * cannot be exchanged. */
+OCGAPI int OCG_DuelSwapHiddenCards(OCG_Duel ocg_duel, uint8_t team, uint32_t loc1, uint32_t seq1, uint32_t loc2, uint32_t seq2);
 
 /*** DUEL PROCESSING AND QUERYING ***/
 OCGAPI int OCG_DuelProcess(OCG_Duel ocg_duel);
