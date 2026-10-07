@@ -6,7 +6,7 @@ an isolated feasibility experiment, not an ABI promise.
 
 ## Design
 
-`OCG_CreateDuel` reserves a 256 MiB `duel_arena`, enters a thread-local arena
+`OCG_CreateDuel` reserves a 1 GiB `duel_arena`, enters a thread-local arena
 scope, and placement-allocates the `duel` root there.  The scope is entered by
 the mutating/process/message/script public C API calls.  Its global C++
 `new`/`delete` hooks therefore contain core objects and STL allocations.
