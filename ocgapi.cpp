@@ -81,9 +81,8 @@ void OCG_DestroyDuel(OCG_Duel ocg_duel) {
 	}
 }
 
-void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
+static void duel_new_card(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
-	duel_arena_scope scope(pduel->arena);
 	auto& game_field = *(pduel->game_field);
 	const auto& info = *info_ptr;
 	if(bit::popcnt(info.loc) > 1)
@@ -126,10 +125,23 @@ void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
 	}
 }
 
+void OCG_DuelNewCard(OCG_Duel ocg_duel, const OCG_NewCardInfo* info_ptr) {
+	duel_arena_scope scope(static_cast<duel*>(ocg_duel)->arena);
+	try {
+		duel_new_card(ocg_duel, info_ptr);
+	} catch(const std::bad_alloc&) {
+		// The first process ends the duel.
+	}
+}
+
 void OCG_StartDuel(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->game_field->emplace_process<Processors::Startup>();
+	try {
+		pduel->game_field->emplace_process<Processors::Startup>();
+	} catch(const std::bad_alloc&) {
+		// The first process ends the duel.
+	}
 }
 
 int OCG_DuelCreateSnapshot(OCG_Duel ocg_duel, OCG_DuelSnapshot* out_snapshot) {
@@ -166,15 +178,31 @@ void OCG_DuelDestroySnapshot(OCG_DuelSnapshot snapshot) {
 uint64_t OCG_DuelArenaUsed(OCG_Duel ocg_duel) { return ocg_duel ? static_cast<duel*>(ocg_duel)->arena->used() : 0; }
 uint64_t OCG_DuelSnapshotSize(OCG_DuelSnapshot snapshot) { return snapshot ? static_cast<duel::snapshot_state*>(snapshot)->arena_image.size() : 0; }
 
+// What the host is told, as an error, when a duel's arena has no room left:
+// the duel ends there.  An allocation that finds no room throws, through Lua's
+// protected calls (which take it for a script's error) or out of the core;
+// either way the arena remembers it, and no entry point lets it out.
+static constexpr const char* arena_full = "The duel's arena is full: the duel cannot go on";
+
 int OCG_DuelProcess(OCG_Duel ocg_duel) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
 	pduel->buff.clear();
 	auto flag = OCG_DUEL_STATUS_END;
-	do {
-		flag = pduel->game_field->process();
-		pduel->generate_buffer();
-	} while(pduel->buff.size() == 0 && flag == OCG_DUEL_STATUS_CONTINUE);
+	bool failed = false;
+	try {
+		do {
+			flag = pduel->game_field->process();
+			pduel->generate_buffer();
+		} while(pduel->buff.size() == 0 && flag == OCG_DUEL_STATUS_CONTINUE);
+	} catch(const std::bad_alloc&) {
+		failed = true;
+	}
+	if(failed || (pduel->arena && pduel->arena->ran_out())) {
+		pduel->buff.clear();
+		pduel->handle_message(arena_full, OCG_LOG_TYPE_ERROR);
+		flag = OCG_DUEL_STATUS_END;
+	}
 	pduel->set_process_result(flag);
 	return flag;
 }
@@ -182,7 +210,11 @@ int OCG_DuelProcess(OCG_Duel ocg_duel) {
 void* OCG_DuelGetMessage(OCG_Duel ocg_duel, uint32_t* length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->generate_buffer();
+	try {
+		pduel->generate_buffer();
+	} catch(const std::bad_alloc&) {
+		pduel->buff.clear();
+	}
 	if(length)
 		*length = static_cast<uint32_t>(pduel->buff.size());
 	return pduel->buff.data();
@@ -191,13 +223,21 @@ void* OCG_DuelGetMessage(OCG_Duel ocg_duel, uint32_t* length) {
 void OCG_DuelSetResponse(OCG_Duel ocg_duel, const void* buffer, uint32_t length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	pduel->set_response(buffer, length);
+	try {
+		pduel->set_response(buffer, length);
+	} catch(const std::bad_alloc&) {
+		// The next process ends the duel.
+	}
 }
 
 int OCG_LoadScript(OCG_Duel ocg_duel, const char* buffer, uint32_t length, const char* name) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
 	duel_arena_scope scope(pduel->arena);
-	return pduel->lua->load_script(buffer, length, name);
+	try {
+		return pduel->lua->load_script(buffer, length, name);
+	} catch(const std::bad_alloc&) {
+		return 0;
+	}
 }
 
 uint32_t OCG_DuelQueryCount(OCG_Duel ocg_duel, uint8_t team, uint32_t loc) {
@@ -241,10 +281,9 @@ ForceInline void insert_value(std::vector<uint8_t>& vec, T2 val) {
 	insert_value_int<T>(vec, static_cast<T>(val));
 }
 
-void* OCG_DuelQuery(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
+static void* duel_query(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
 	const auto& info = *info_ptr;
 	auto* pduel = static_cast<duel*>(ocg_duel);
-	duel_arena_scope scope(pduel->arena);
 	if(bit::popcnt(info.loc & ~LOCATION_OVERLAY) != 1)
 		return nullptr;
 	pduel->query_buffer.clear();
@@ -269,10 +308,9 @@ void* OCG_DuelQuery(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* in
 	return pduel->query_buffer.data();
 }
 
-void* OCG_DuelQueryLocation(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
+static void* duel_query_location(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
 	const auto& info = *info_ptr;
 	auto* pduel = static_cast<duel*>(ocg_duel);
-	duel_arena_scope scope(pduel->arena);
 	auto& buffer = pduel->query_buffer;
 	auto populate = [&flags = info.flags, &buffer](const card_vector& list) {
 		for(auto& pcard : list) {
@@ -313,9 +351,8 @@ void* OCG_DuelQueryLocation(OCG_Duel ocg_duel, uint32_t* length, const OCG_Query
 	return buffer.data();
 }
 
-void* OCG_DuelQueryField(OCG_Duel ocg_duel, uint32_t* length) {
+static void* duel_query_field(OCG_Duel ocg_duel, uint32_t* length) {
 	auto* pduel = static_cast<duel*>(ocg_duel);
-	duel_arena_scope scope(pduel->arena);
 	auto& query = pduel->query_buffer;
 	query.clear();
 	//insert_value<int8_t>(query, MSG_RELOAD_FIELD);
@@ -365,4 +402,29 @@ void* OCG_DuelQueryField(OCG_Duel ocg_duel, uint32_t* length) {
 	if(length)
 		*length = static_cast<uint32_t>(query.size());
 	return query.data();
+}
+
+// A query that finds the arena full answers nothing.
+template<typename Query>
+static void* guarded_query(OCG_Duel ocg_duel, uint32_t* length, Query query) {
+	duel_arena_scope scope(static_cast<duel*>(ocg_duel)->arena);
+	try {
+		return query();
+	} catch(const std::bad_alloc&) {
+		if(length)
+			*length = 0;
+		return nullptr;
+	}
+}
+
+void* OCG_DuelQuery(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
+	return guarded_query(ocg_duel, length, [&] { return duel_query(ocg_duel, length, info_ptr); });
+}
+
+void* OCG_DuelQueryLocation(OCG_Duel ocg_duel, uint32_t* length, const OCG_QueryInfo* info_ptr) {
+	return guarded_query(ocg_duel, length, [&] { return duel_query_location(ocg_duel, length, info_ptr); });
+}
+
+void* OCG_DuelQueryField(OCG_Duel ocg_duel, uint32_t* length) {
+	return guarded_query(ocg_duel, length, [&] { return duel_query_field(ocg_duel, length); });
 }
