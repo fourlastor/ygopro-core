@@ -86,7 +86,19 @@ snapshot, deals again what one player cannot see with it, and plays the duel
 on from there.  It cancels both cards' field effects, exchanges their slots
 and their placement state, applies the field effects again and calls
 `adjust_instant`, inside the duel's arena scope.  It refuses (returns 0) when
-a slot is empty or both name the same slot, when either card is referred to
-by a link of the current chain, when a Spell & Trap Zone card is not
+a slot is empty or both name the same slot, when a link of the current chain
+is handled by either card or targets it, when a Spell & Trap Zone card is not
 face-down, and when a card that is neither Spell nor Trap would land in that
-zone.  Face-down monsters cannot be exchanged.
+zone.
+
+A face-down monster can be exchanged too, with a monster of the hand or the
+deck or another face-down monster, when nothing has touched it since it
+reached the field: Normal Set without a Tribute, or Special Summoned face-down
+by an effect (Morphing Jar #2), with no counters, equips, materials, targets,
+relations or effects of other cards on it, and the other card free of those as
+well.  The zone's state stays with the zone: position, the turn the monster
+arrived, how it was summoned, its attack counts.  Only which card holds it
+changes.  A Main Deck monster is required (no Fusion, Synchro, Xyz, Link or
+Ritual monster lands there), and the Monster Zone never exchanges with the
+Spell & Trap Zone.  A search uses it to deal again the other player's unknown
+Set monsters from the monsters that player could have Set.
