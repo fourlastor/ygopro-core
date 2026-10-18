@@ -110,6 +110,13 @@ public:
 	bool can_snapshot() const;
 	snapshot_state make_snapshot() const;
 	bool restore_snapshot(const snapshot_state& snapshot);
+	// For a search (duel_search.cpp): chance events of its own on a simulated
+	// branch, and the branches' log kept to itself.
+	void reseed(const RNG::Xoshiro256StarStar::StateType& state) { random = RNG::Xoshiro256StarStar(state); }
+	void swap_log_handler(OCG_LogHandler& handler, void*& payload) {
+		std::swap(handle_message_callback, handler);
+		std::swap(handle_message_payload, payload);
+	}
 	duel_arena* arena{};
 	int32_t get_next_integer(int32_t l, int32_t h);
 	duel_message* new_message(uint8_t message);

@@ -30,6 +30,7 @@ ocgcore_src = files([
 	'card.cpp',
 	'duel.cpp',
 	'duel_arena.cpp',
+	'duel_search.cpp',
 	'duel_swap.cpp',
 	'effect.cpp',
 	'field.cpp',

@@ -55,6 +55,23 @@ OCGAPI uint64_t OCG_DuelSnapshotSize(OCG_DuelSnapshot snapshot);
  * the card it is exchanged with be free of those; the Monster Zone never
  * exchanges with the Spell & Trap Zone. */
 OCGAPI int OCG_DuelSwapHiddenCards(OCG_Duel ocg_duel, uint8_t team, uint32_t loc1, uint32_t seq1, uint32_t loc2, uint32_t seq2);
+/* Give a simulated branch chance events of its own (coin tosses, dice,
+ * shuffles), from a generator seeded with seed.  Only after taking a snapshot:
+ * restoring it restores the duel's own generator too.  Returns 1, or 0 for a
+ * NULL duel. */
+OCGAPI int OCG_DuelReseed(OCG_Duel ocg_duel, uint64_t seed);
+/* Log through *handler and *payload from now on, and put the handler and
+ * payload the duel logged through until now in their place: a search playing
+ * branches of a host's duel keeps their script errors to itself, then swaps
+ * the host's back.  The handler is part of what a snapshot keeps: swap before
+ * taking the first snapshot of the branches, and back after the last restore.
+ * Returns 1, or 0 (and swaps nothing) for a NULL duel or handler. */
+OCGAPI int OCG_DuelSwapLogHandler(OCG_Duel ocg_duel, OCG_LogHandler* handler, void** payload);
+/* Call append(payload, effect) for each effect the initial_effect of card code
+ * declares, without calling any condition, cost, target, value or operation
+ * function.  Only on a duel that has not started: the card is made, and stays
+ * off the field.  Returns 1, or 0 when the card cannot be made. */
+OCGAPI int OCG_DuelInitialEffects(OCG_Duel ocg_duel, uint32_t code, void* payload, OCG_InitialEffectHandler append);
 
 /*** DUEL PROCESSING AND QUERYING ***/
 OCGAPI int OCG_DuelProcess(OCG_Duel ocg_duel);

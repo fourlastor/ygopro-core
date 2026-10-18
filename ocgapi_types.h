@@ -71,6 +71,20 @@ typedef void (*OCG_DataReaderDone)(void* payload, OCG_CardData* data);
 typedef int (*OCG_ScriptReader)(void* payload, OCG_Duel duel, const char* name);
 typedef void (*OCG_LogHandler)(void* payload, const char* string, int type);
 
+/* One effect a card's initial_effect declares (OCG_DuelInitialEffects). */
+typedef struct OCG_InitialEffect {
+	uint64_t category;
+	uint64_t description;
+	uint64_t flags;
+	uint32_t event;
+	uint16_t effect_type;
+	uint16_t range;
+	uint8_t has_cost;
+	uint8_t card_target;
+}OCG_InitialEffect;
+
+typedef void (*OCG_InitialEffectHandler)(void* payload, const OCG_InitialEffect* effect);
+
 typedef struct OCG_DuelOptions {
 	uint64_t seed[4];
 	uint64_t flags;
