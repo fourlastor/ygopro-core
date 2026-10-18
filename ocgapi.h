@@ -45,7 +45,8 @@ OCGAPI uint64_t OCG_DuelSnapshotSize(OCG_DuelSnapshot snapshot);
 /* Exchange two cards of one player (team) between the deck, the hand, the
  * Spell & Trap Zone and the Monster Zone: the places a card can be hidden in.
  * Returns 1, or 0 when it refuses: an empty slot, the same slot twice, a card
- * a link of the current chain is handled by or targets, a Spell & Trap Zone
+ * a link of the current chain is handled by or targets, a card a process under
+ * way moves or acts on (a summon waiting on its position), a Spell & Trap Zone
  * card that is not face-down, a card that is neither Spell nor Trap landing in
  * that zone, or a card that is not a Main Deck monster landing in the Monster
  * Zone.  A Monster Zone card must be face-down, Normal Set without a Tribute

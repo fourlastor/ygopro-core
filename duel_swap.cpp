@@ -10,7 +10,9 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 #include <cstdint>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include "ocgapi.h"
 #include "card.h"
 #include "duel.h"
@@ -58,6 +60,60 @@ static bool active_chain_references(const field& game_field, const card* pcard) 
 	return false;
 }
 
+// Whether a process names the card as what it moves or acts on: its `target`
+// (one card) or its `targets` (a group), the names every move uses.
+template<typename T, typename = void>
+struct has_target : std::false_type {};
+template<typename T>
+struct has_target<T, std::void_t<decltype(std::declval<T&>().target)>> : std::true_type {};
+template<typename T, typename = void>
+struct has_targets : std::false_type {};
+template<typename T>
+struct has_targets<T, std::void_t<decltype(std::declval<T&>().targets)>> : std::true_type {};
+
+template<typename T>
+static bool names_card(const T& member, card* pcard) {
+	if constexpr(std::is_convertible_v<const T&, const card*>) {
+		return static_cast<const card*>(member) == pcard;
+	} else if constexpr(std::is_convertible_v<const T&, group*>) {
+		group* cards = member;
+		return cards && cards->has_card(pcard);
+	} else {
+		return false;
+	}
+}
+
+// A process under way is moving the card, or acting on it: a summon from the
+// Deck waiting on the monster's position keeps the zone it chose, and the
+// summon's reason, on the card itself.  Exchanged, the card would take
+// another's halfway state, and that card its own.
+static bool in_flight(field& game_field, card* pcard) {
+	auto names = [pcard](auto& unit) -> bool {
+		using unit_type = std::remove_reference_t<decltype(unit)>;
+		if constexpr(has_target<unit_type>::value) {
+			if(names_card(unit.target, pcard))
+				return true;
+		}
+		if constexpr(has_targets<unit_type>::value) {
+			if(names_card(unit.targets, pcard))
+				return true;
+		}
+		return false;
+	};
+	// Processes are variants, or variants of variants in debug builds.
+	auto visit = [&](auto& unit) -> bool {
+		if constexpr(Processors::IsProcess<decltype(unit)>)
+			return names(unit);
+		else
+			return std::visit(names, unit);
+	};
+	for(auto* units : {&game_field.core.units, &game_field.core.subunits})
+		for(auto& unit : *units)
+			if(std::visit(visit, unit))
+				return true;
+	return game_field.core.reserved && std::visit(visit, *game_field.core.reserved);
+}
+
 // Nothing but the card's own script has put an effect on it, and nothing
 // points at it: no counters, equips, materials, targets or relations.
 static bool unattached(const card* pcard) {
@@ -93,6 +149,8 @@ int OCG_DuelSwapHiddenCards(OCG_Duel ocg_duel, uint8_t team,
 	if(!first || !second || first == second)
 		return 0;
 	if(active_chain_references(game_field, first) || active_chain_references(game_field, second))
+		return 0;
+	if(in_flight(game_field, first) || in_flight(game_field, second))
 		return 0;
 	if((loc1 == LOCATION_SZONE && !(first->current.position & POS_FACEDOWN))
 			|| (loc2 == LOCATION_SZONE && !(second->current.position & POS_FACEDOWN)))
