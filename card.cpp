@@ -108,16 +108,62 @@ void insert_value(std::vector<uint8_t>& vec, const T& _val) {
 	std::memcpy(&vec[vec_size], &val, val_size);
 }
 
+namespace {
+// A card's record written into the query buffer. Where the buffer already has
+// room for the most the record can hold, the values go straight into that
+// room: written one at a time, they would not have grown the buffer either, so
+// the duel's arena is used as it always was. Without that room, or past it,
+// they are written one at a time, as before.
+class record_writer {
+public:
+	record_writer(std::vector<uint8_t>& buffer, size_t most) : buffer(buffer) {
+		const auto size = buffer.size();
+		if(buffer.capacity() - size >= most) {
+			buffer.resize(size + most);
+			cursor = buffer.data() + size;
+			end = cursor + most;
+		}
+	}
+	~record_writer() {
+		if(cursor)
+			buffer.resize(static_cast<size_t>(cursor - buffer.data()));
+	}
+	record_writer(const record_writer&) = delete;
+	record_writer& operator=(const record_writer&) = delete;
+	template<typename T>
+	ForceInline void put(const T& value) {
+		if(cursor && static_cast<size_t>(end - cursor) >= sizeof(T)) {
+			std::memcpy(cursor, &value, sizeof(T));
+			cursor += sizeof(T);
+			return;
+		}
+		if(cursor) {
+			buffer.resize(static_cast<size_t>(cursor - buffer.data()));
+			cursor = nullptr;
+		}
+		insert_value<T>(buffer, value);
+	}
+private:
+	std::vector<uint8_t>& buffer;
+	uint8_t* cursor{};
+	uint8_t* end{};
+};
+}
+
 #define CHECK_AND_INSERT_T(query, value, type) do { \
 	if(query_flag & query) {\
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(type)); \
-		insert_value<uint32_t>(pduel->query_buffer, query); \
-		insert_value<type>(pduel->query_buffer, value); \
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(type)); \
+		record.put<uint32_t>(query); \
+		record.put<type>(value); \
 	} \
 } while(0)
 #define CHECK_AND_INSERT(query, value)CHECK_AND_INSERT_T(query, value, uint32_t)
 
 void card::get_infos(uint32_t query_flag) {
+	// The most the record can hold: a field a flag, none longer than 16 bytes
+	// before its list, the lists, whether the card is public and the end.
+	record_writer record(pduel->query_buffer, 16 * bit::popcnt(query_flag) + 7 + 6
+		+ 10 * effect_target_cards.size() + 4 * (xyz_materials.size() + counters.size()));
 	CHECK_AND_INSERT(QUERY_CODE, data.code);
 	CHECK_AND_INSERT(QUERY_POSITION, get_info_location().position);
 	CHECK_AND_INSERT(QUERY_ALIAS, get_code());
@@ -133,79 +179,79 @@ void card::get_infos(uint32_t query_flag) {
 	CHECK_AND_INSERT(QUERY_REASON, current.reason);
 	CHECK_AND_INSERT(QUERY_COVER, cover);
 	if(query_flag & QUERY_REASON_CARD) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint64_t));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_REASON_CARD);
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint64_t));
+		record.put<uint32_t>(QUERY_REASON_CARD);
 		if(current.reason_card) {
 			loc_info info = current.reason_card->get_info_location();
-			insert_value<uint8_t>(pduel->query_buffer, info.controler);
-			insert_value<uint8_t>(pduel->query_buffer, info.location);
-			insert_value<uint32_t>(pduel->query_buffer, info.sequence);
-			insert_value<uint32_t>(pduel->query_buffer, info.position);
+			record.put<uint8_t>(info.controler);
+			record.put<uint8_t>(info.location);
+			record.put<uint32_t>(info.sequence);
+			record.put<uint32_t>(info.position);
 		} else {
-			insert_value<uint16_t>(pduel->query_buffer, 0);
-			insert_value<uint64_t>(pduel->query_buffer, 0);
+			record.put<uint16_t>(0);
+			record.put<uint64_t>(0);
 		}
 	}
 	if(query_flag & QUERY_EQUIP_CARD) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint64_t));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_EQUIP_CARD);
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint64_t));
+		record.put<uint32_t>(QUERY_EQUIP_CARD);
 		if(equiping_target) {
 			loc_info info = equiping_target->get_info_location();
-			insert_value<uint8_t>(pduel->query_buffer, info.controler);
-			insert_value<uint8_t>(pduel->query_buffer, info.location);
-			insert_value<uint32_t>(pduel->query_buffer, info.sequence);
-			insert_value<uint32_t>(pduel->query_buffer, info.position);
+			record.put<uint8_t>(info.controler);
+			record.put<uint8_t>(info.location);
+			record.put<uint32_t>(info.sequence);
+			record.put<uint32_t>(info.position);
 		} else {
-			insert_value<uint16_t>(pduel->query_buffer, 0);
-			insert_value<uint64_t>(pduel->query_buffer, 0);
+			record.put<uint16_t>(0);
+			record.put<uint64_t>(0);
 		}
 	}
 	if(query_flag & QUERY_TARGET_CARD) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint32_t) + static_cast<uint16_t>(effect_target_cards.size()) * (sizeof(uint16_t) + sizeof(uint64_t)));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_TARGET_CARD);
-		insert_value<uint32_t>(pduel->query_buffer, static_cast<uint32_t>(effect_target_cards.size()));
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint32_t) + static_cast<uint16_t>(effect_target_cards.size()) * (sizeof(uint16_t) + sizeof(uint64_t)));
+		record.put<uint32_t>(QUERY_TARGET_CARD);
+		record.put<uint32_t>(static_cast<uint32_t>(effect_target_cards.size()));
 		for(auto& pcard : effect_target_cards) {
 			loc_info info = pcard->get_info_location();
-			insert_value<uint8_t>(pduel->query_buffer, info.controler);
-			insert_value<uint8_t>(pduel->query_buffer, info.location);
-			insert_value<uint32_t>(pduel->query_buffer, info.sequence);
-			insert_value<uint32_t>(pduel->query_buffer, info.position);
+			record.put<uint8_t>(info.controler);
+			record.put<uint8_t>(info.location);
+			record.put<uint32_t>(info.sequence);
+			record.put<uint32_t>(info.position);
 		}
 	}
 	if(query_flag & QUERY_OVERLAY_CARD) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint32_t) + static_cast<uint16_t>(xyz_materials.size()) * sizeof(uint32_t));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_OVERLAY_CARD);
-		insert_value<uint32_t>(pduel->query_buffer, static_cast<uint32_t>(xyz_materials.size()));
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint32_t) + static_cast<uint16_t>(xyz_materials.size()) * sizeof(uint32_t));
+		record.put<uint32_t>(QUERY_OVERLAY_CARD);
+		record.put<uint32_t>(static_cast<uint32_t>(xyz_materials.size()));
 		for(auto& xcard : xyz_materials)
-			insert_value<uint32_t>(pduel->query_buffer, xcard->data.code);
+			record.put<uint32_t>(xcard->data.code);
 	}
 	if(query_flag & QUERY_COUNTERS) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint32_t) + static_cast<uint16_t>(counters.size()) * sizeof(uint32_t));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_COUNTERS);
-		insert_value<uint32_t>(pduel->query_buffer, static_cast<uint32_t>(counters.size()));
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint32_t) + static_cast<uint16_t>(counters.size()) * sizeof(uint32_t));
+		record.put<uint32_t>(QUERY_COUNTERS);
+		record.put<uint32_t>(static_cast<uint32_t>(counters.size()));
 		for(auto& cmit : counters)
-			insert_value<uint32_t>(pduel->query_buffer, cmit.first + ((cmit.second[0] + cmit.second[1]) << 16));
+			record.put<uint32_t>(cmit.first + ((cmit.second[0] + cmit.second[1]) << 16));
 	}
 	CHECK_AND_INSERT_T(QUERY_OWNER, owner, uint8_t);
 	CHECK_AND_INSERT(QUERY_STATUS, status);
 	// HACK: to remove once the servers are updated to send this flag
 	if(true /* query_flag & QUERY_IS_PUBLIC */) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint8_t));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_IS_PUBLIC);
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint8_t));
+		record.put<uint32_t>(QUERY_IS_PUBLIC);
 		auto is_public = (is_position(POS_FACEUP) || is_related_to_chains() || (current.is_location(LOCATION_HAND | LOCATION_ONFIELD) && is_affected_by_effect(EFFECT_PUBLIC)));
-		insert_value<uint8_t>(pduel->query_buffer, is_public ? 1 : 0);
+		record.put<uint8_t>(is_public ? 1 : 0);
 	}
 	CHECK_AND_INSERT(QUERY_LSCALE, get_lscale());
 	CHECK_AND_INSERT(QUERY_RSCALE, get_rscale());
 	if(query_flag & QUERY_LINK) {
-		insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t));
-		insert_value<uint32_t>(pduel->query_buffer, QUERY_LINK);
-		insert_value<uint32_t>(pduel->query_buffer, get_link());
-		insert_value<uint32_t>(pduel->query_buffer, get_link_marker());
+		record.put<uint16_t>(sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t));
+		record.put<uint32_t>(QUERY_LINK);
+		record.put<uint32_t>(get_link());
+		record.put<uint32_t>(get_link_marker());
 	}
 	CHECK_AND_INSERT_T(QUERY_IS_HIDDEN, is_affected_by_effect(EFFECT_DARKNESS_HIDE) ? 1 : 0, uint8_t);
-	insert_value<uint16_t>(pduel->query_buffer, sizeof(uint32_t));
-	insert_value<uint32_t>(pduel->query_buffer, QUERY_END);
+	record.put<uint16_t>(sizeof(uint32_t));
+	record.put<uint32_t>(QUERY_END);
 }
 int32_t card::is_related_to_chains() {
 	if(!is_status(STATUS_CHAINING))
