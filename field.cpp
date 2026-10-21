@@ -2155,9 +2155,22 @@ void field::adjust_self_destroy_set() {
 				cset.insert(pcard);
 		}
 	}
+	// A card that a card equipped to it is being destroyed in place of does
+	// not destroy itself until that card is gone: asked now, it would have
+	// the same card destroyed instead once more, before the first is done,
+	// and so on without end (Malefic Cyber End Dragon without a face-up Field
+	// Spell, with Machina Gearframe equipped).
+	auto substitute_pending = [](card* pcard) {
+		for(auto& eq : pcard->equiping_cards) {
+			if((eq->current.reason & (REASON_DESTROY | REASON_REPLACE)) == (REASON_DESTROY | REASON_REPLACE)
+					&& eq->equip_effect.count(EFFECT_DESTROY_SUBSTITUTE))
+				return true;
+		}
+		return false;
+	};
 	for(auto& pcard : cset) {
 		effect* peffect = pcard->is_affected_by_effect(EFFECT_SELF_DESTROY);
-		if(peffect) {
+		if(peffect && !substitute_pending(pcard)) {
 			core.self_destroy_set.insert(pcard);
 		}
 	}
